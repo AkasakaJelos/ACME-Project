@@ -29,9 +29,9 @@ class DNS_Server:
 
     def resolve_update(self, domain,zone,tp):
         if tp == "A":
-            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 60))
+            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 400))
         elif tp == "TXT":
-            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 60))
+            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 400))
 
 
     def start_server(self):
