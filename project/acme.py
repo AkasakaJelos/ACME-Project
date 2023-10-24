@@ -175,7 +175,7 @@ def main():
 
     #Start the DNS server
     print("DNS server starting........")
-    server_ = DNS_Server(args.record)
+    server_ = DNS_Server(args.record, DNS_SERVER_PORT)
     run_dns_server(server_, args)
     print("DNS server started")
 

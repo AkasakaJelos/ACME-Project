@@ -22,9 +22,10 @@ class DNS_Server:
     Setup my own dns server
 
     """
-    def __init__(self, args):
+    def __init__(self, args, port):
         self.args = args
-        self.server = DNSServer(resolver=DNS_Resolver(), port=10053, address="0.0.0.0", logger=DNSLogger(prefix = False))
+        self.port = port
+        self.server = DNSServer(resolver=DNS_Resolver(), port=port, address="0.0.0.0", logger=DNSLogger(prefix = False))
 
 
     def resolve_update(self, domain,zone,tp):
@@ -37,7 +38,8 @@ class DNS_Server:
     def start_server(self):
         self.server.start_thread()
     def shutdown_server(self):
-        self.server.shutdown()
+        self.server.server_close()
+
 
     #Debugger
     def is_running(self):
