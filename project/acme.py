@@ -1,7 +1,7 @@
 """
 Acme client implementation
 
-
+./run dns01 --dir https://example.com/dir --record 1.2.3.4 --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 """
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -176,31 +176,19 @@ def main():
 
     #Start the DNS server
     print("DNS server starting........")
-    server_ = DNS_Server(args.record, DNS_SERVER_PORT)
-    run_dns_server(server_, args)
+    server = DNS_Server(args.record, DNS_SERVER_PORT)
+    run_dns_server(server, args)
     print("DNS server started")
 
+    # shutdown the DNS server
+
+    print("DNS server shutting down........")
+    stop_dns_server(server)
+    print("DNS server shut down")
 
 
-"""
-    #Start the HTTP server
-    app = Flask(__name__)
-    @app.route('/.well-known/acme-challenge/<token>', methods=['GET'])
-    def challenge(token):
-        return token
-    
-    app.run(host='localhost', port=CHALLENGE_SERVER_PORT, debug=True)
-    print("HTTP server started")
 
-    #Start the HTTPS server
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
-    #Generate the key and the certificate
-    key, csr = Certificate_HTTPS().GenerateCSRForServer()
-    context.load_cert_chain(csr, key)
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-"""
 
 
 

@@ -42,7 +42,7 @@ class DNS_Server:
     def start_server(self):
         self.server.start_thread()
     def shutdown_server(self):
-        self.server.server_close()
+        self.server.server.server_close()
 
 
     #Debugger
