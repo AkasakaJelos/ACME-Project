@@ -5,4 +5,4 @@ cd  "$DIRECTORY" || exit 1
 
 echo "Run your project here."
 
-./acme.py "$@"
+python3 acme.py --dir https://example.com/dir --record 1.2.3.4 --domain netsec.ethz.ch --domain syssec.ethz.ch

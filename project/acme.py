@@ -11,27 +11,25 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 import argparse
 import http.server as http_server
-import dnslib
 import base64
 import json
-from dnslib.server import DNSServer, DNSLogger
+
 import ssl
 from flask import Flask
 import requests
 import socket
+#Private libs
+from DNS import DNS_Server
 
 #Used to generate the public private key pair to prove the client is controlling it
 
 
-def encode(text):
-    return base64.b64encode(text.encode('utf-8'))
-
-
-
-
 #JWS sign and verify for the message of the ACME protocol
 
-class JWK():
+
+def enc(header, payload):
+    pass
+class JWK:
     def __init__(self, key):
         self.key = key
 
@@ -47,7 +45,7 @@ class JWK():
 
 
 class Certificate_HTTPS:
-    def __init__(self,ip, port):
+    def __init__(self, ip, port):
         self.IP = ip
         self.port = port
 
@@ -84,38 +82,6 @@ class Certificate_HTTPS:
 
 
 
-
-class DNS_Server:
-    """
-    Setup my own dns server
-
-    """
-    def __init__(self, record):
-        self.record = record
-        self.form = ["*. 60 A {}".format(self.record)]
-
-    def dns_resolve(self):
-        reply = self.request.reply()
-        #qType = self.request.q
-        #q_name = self.request.q.qname
-
-        #print("qType: ", qType)
-        #print("q_name: ", q_name)
-        #print("q: ", self.request.q)
-        #print("qname: ", self.request.q.qname)
-
-        #if qType == dnslib.QTYPE.A:
-        #    reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.A, rdata=dnslib.A("localhost"), ttl=60))
-
-        #elif qType == dnslib.QTYPE.TXT:
-        #    reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.TXT, rdata=dnslib.TXT("Hello World"), ttl=60))
-        #else:
-        #reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.CNAME, rdata=dnslib.CNAME("localhost"), ttl=60))
-        #print(reply)
-        for i in self.form:
-            reply.add_answer(*dnslib.RR.fromZone(i))
-
-        return reply
 
 
 
@@ -164,7 +130,7 @@ class ACME_Client:
 
         #Create the JWS header
         head = {'Host': 'localhost', 'Content-Type': 'application/jose+json'}
-        protected = encode(head, { "alg": alg,
+        protected = enc(head, { "alg": alg,
                                     "jwk": public_key_info.public_key(),
                                     "nonce": "nonce",
                                     "url": "http://"+Host+"/acme/new-account"})
@@ -184,6 +150,13 @@ class ACME_Client:
 
 
 
+def run_dns_server(server, args):
+    for domain in args.domain:
+        server.resolve_update(domain, args.dir, args.record)
+    server.start_server()
+
+def stop_dns_server(server):
+    server.shutdown_server()
 
 
 
@@ -201,11 +174,13 @@ def main():
     CERTIFICATE_PORT = 5001 #TCP port 5001
 
     #Start the DNS server
-    resolver = dnslib.server.DNSResolver(record = args.record)
-    server = DNSServer(resolver,port=DNS_SERVER_PORT,address = "127.0.0.1")
-    server.start_thread()
-    assert server.is_running
+    print("DNS server starting........")
+    server_ = DNS_Server(args.record)
+    run_dns_server(server_, args)
     print("DNS server started")
+
+
+
 """
     #Start the HTTP server
     app = Flask(__name__)
