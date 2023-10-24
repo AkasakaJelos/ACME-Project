@@ -162,6 +162,7 @@ def stop_dns_server(server):
 
 def main():
     parse = argparse.ArgumentParser(description='ACME client')
+    parse.add_argument('challenge', help='The challenge type you want to use', choices=['dns01', 'http01'])
     parse.add_argument('-u', '--dir', help='The directory you want to get certified', required=True)
     parse.add_argument('-c', '--record', help='Only challenge type', required=True)
     parse.add_argument('-d', '--domain', help='The domain you want to access.', action='append', required=True)

@@ -17,6 +17,10 @@ class DNS_Resolver:
         for z in self.zones:
             reply.add_answer(*dnslib.RR.fromZone(z))
         return reply
+
+    #Debugging purposes
+    def return_zones(self):
+        return self.zones
 class DNS_Server:
     """
     Setup my own dns server
