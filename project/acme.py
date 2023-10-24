@@ -4,20 +4,44 @@ Acme client implementation
 
 
 """
-
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
 import argparse
 import http.server as http_server
 import dnslib
-from dnslib.server import DNSServer
+import base64
+import json
+from dnslib.server import DNSServer, DNSLogger
 import ssl
 from flask import Flask
+import requests
 import socket
 
 #Used to generate the public private key pair to prove the client is controlling it
+
+
+def encode(text):
+    return base64.b64encode(text.encode('utf-8'))
+
+
+
+
+#JWS sign and verify for the message of the ACME protocol
+
+class JWK():
+    def __init__(self, key):
+        self.key = key
+
+    def sign(self, message):
+        #Sign the message with the private key
+        pass
+
+    def verify(self, signature, message):
+        #Verify the message with the public key
+        pass
 
 
 
@@ -66,28 +90,31 @@ class DNS_Server:
     Setup my own dns server
 
     """
-    def __init__(self, request, handler, record):
-        self.request = request
-        self.handler = handler
+    def __init__(self, record):
         self.record = record
+        self.form = ["*. 60 A {}".format(self.record)]
 
     def dns_resolve(self):
         reply = self.request.reply()
-        qType = self.request.q
-        q_name = self.request.q.qname
+        #qType = self.request.q
+        #q_name = self.request.q.qname
 
-        print("qType: ", qType)
-        print("q_name: ", q_name)
-        print("q: ", self.request.q)
-        print("qname: ", self.request.q.qname)
+        #print("qType: ", qType)
+        #print("q_name: ", q_name)
+        #print("q: ", self.request.q)
+        #print("qname: ", self.request.q.qname)
 
-        if qType == dnslib.QTYPE.A:
-            reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.A, rdata=dnslib.A("localhost"), ttl=60))
+        #if qType == dnslib.QTYPE.A:
+        #    reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.A, rdata=dnslib.A("localhost"), ttl=60))
 
-        elif qType == dnslib.QTYPE.TXT:
-            reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.TXT, rdata=dnslib.TXT("Hello World"), ttl=60))
-        else:
-            reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.CNAME, rdata=dnslib.CNAME("localhost"), ttl=60))
+        #elif qType == dnslib.QTYPE.TXT:
+        #    reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.TXT, rdata=dnslib.TXT("Hello World"), ttl=60))
+        #else:
+        #reply.add_answer(dnslib.RR(q_name, dnslib.QTYPE.CNAME, rdata=dnslib.CNAME("localhost"), ttl=60))
+        #print(reply)
+        for i in self.form:
+            reply.add_answer(*dnslib.RR.fromZone(i))
+
         return reply
 
 
@@ -121,12 +148,30 @@ Main implementation of the ACME client
                      ACME Resources and Relationships
 """
 class ACME_Client:
-    def __init__(self):
-        pass
+    def __init__(self,account_key):
+        self.account_key = account_key
+
+
 
     def AccountCreation(self):
         #Create a new account and return account
-        pass
+        Host = "localhost"
+        alg = "ES256"
+        public_key_info = self.account_key.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
+        #Create the JWS header
+        head = {'Host': 'localhost', 'Content-Type': 'application/jose+json'}
+        protected = encode(head, { "alg": alg,
+                                    "jwk": public_key_info.public_key(),
+                                    "nonce": "nonce",
+                                    "url": "http://"+Host+"/acme/new-account"})
+        header_json = json.dumps(protected)
+        response = requests.post("http://"+Host+"/acme/new-account", data=header_json)
+
+        return response
 
     def newOrder(self):
         pass
@@ -139,8 +184,6 @@ class ACME_Client:
 
 
 
-def keyAuthorization(token, accountkey):
-    return token + "." + accountkey
 
 
 
@@ -158,17 +201,18 @@ def main():
     CERTIFICATE_PORT = 5001 #TCP port 5001
 
     #Start the DNS server
-    resolver = dnslib.server.DNSResolver()
-    server = DNSServer(resolver,port=DNS_SERVER_PORT,address = "localhost",logger = dnslib.DNSLogger(prefix = False), tcp=False)
+    resolver = dnslib.server.DNSResolver(record = args.record)
+    server = DNSServer(resolver,port=DNS_SERVER_PORT,address = "127.0.0.1")
     server.start_thread()
     assert server.is_running
     print("DNS server started")
-
+"""
     #Start the HTTP server
     app = Flask(__name__)
     @app.route('/.well-known/acme-challenge/<token>', methods=['GET'])
     def challenge(token):
         return token
+    
     app.run(host='localhost', port=CHALLENGE_SERVER_PORT, debug=True)
     print("HTTP server started")
 
@@ -180,20 +224,7 @@ def main():
     context.load_cert_chain(csr, key)
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
-    #Start the HTTPS server
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(('localhost',CERTIFICATE_PORT))
-        sock.listen(5)
-        with context.wrap_socket(sock, server_side=True) as ssock:
-            conn, addr = ssock.accept()
-            with conn:
-                print('Connected by', addr)
-                while True:
-                    data = conn.recv(1024)
-                    if not data: break
-                    conn.sendall(data)
-
-
+"""
 
 
 
