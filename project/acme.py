@@ -209,7 +209,7 @@ def main():
     print("Challenge server shutting down........")
     shutdown_server = ShutdownHTTPServer()
     shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
-    print("Challenge server shut down") s
+    print("Challenge server shut down") 
 
 
 
