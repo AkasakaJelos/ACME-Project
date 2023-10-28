@@ -9,6 +9,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
+from threading import Thread
 import argparse
 import http.server as http_server
 import base64
@@ -20,6 +21,7 @@ import requests
 import socket
 #Private libs
 from DNS import DNS_Server
+from HTTP import HTTPChallengeServer, ShutdownHTTPServer
 
 #Used to generate the public private key pair to prove the client is controlling it
 
@@ -180,11 +182,26 @@ def main():
     run_dns_server(server, args)
     print("DNS server started")
 
-    # shutdown the DNS server
+    #Start the challenge server
+    print("Challenge server starting........")
+    args = (CHALLENGE_SERVER_PORT, "0.0.0.0")
+    challenge_server = HTTPChallengeServer()
+    server_thread = Thread(target=challenge_server.start_server, args = args)
+    server_thread.start()
+    print("Challenge server started")
 
+    # shutdown the DNS server
     print("DNS server shutting down........")
     stop_dns_server(server)
     print("DNS server shut down")
+
+
+    # shutdown the challenge server
+    print("Challenge server shutting down........")
+    shutdown_server = ShutdownHTTPServer()
+    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, "0.0.0.0")
+    print("Challenge server shut down")
+
 
 
 

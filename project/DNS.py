@@ -1,3 +1,10 @@
+"""
+
+DNS server: A DNS server which resolves the DNS Queries of the ACME Server.
+
+"""
+
+
 import dnslib
 from dnslib.server import DNSServer, DNSLogger
 
