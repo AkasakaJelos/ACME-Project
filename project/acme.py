@@ -183,7 +183,7 @@ def main():
         pass
     elif args.challenge=="http01":
         IPAddr = args.record
-        print("IPAddr: ", IPAddr)
+        #print("IPAddr: ", IPAddr)
 
     #Start the DNS server
     print("DNS server starting........")
@@ -208,8 +208,8 @@ def main():
     # shutdown the challenge server
     print("Challenge server shutting down........")
     shutdown_server = ShutdownHTTPServer()
-    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, "0.0.0.0")
-    print("Challenge server shut down")
+    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
+    print("Challenge server shut down") s
 
 
 
