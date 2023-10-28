@@ -45,9 +45,6 @@ class ShutdownHTTPServer:
             self.shutdown_server()
             return 'Server shutting down...'
 
-    def shutdown_server(self):
-        shutdown_func = request.environ.get('werkzeug.server.shutdown')
-        if shutdown_func is None:
-            raise RuntimeError('Not running with the Werkzeug Server')
-        shutdown_func()
+    def shutdown_server(self, port, host):
+        self.app.run(port=port, host=host, threaded=True) #Shutting down the server.
 
