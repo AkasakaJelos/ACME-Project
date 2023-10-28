@@ -184,7 +184,7 @@ def main():
 
     #Start the challenge server
     print("Challenge server starting........")
-    args = (CHALLENGE_SERVER_PORT, "0.0.0.0")
+    args = (CHALLENGE_SERVER_PORT, "127.0.0.1")
     challenge_server = HTTPChallengeServer()
     server_thread = Thread(target=challenge_server.start_server, args = args)
     server_thread.start()
