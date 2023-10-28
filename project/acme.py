@@ -176,6 +176,15 @@ def main():
     CHALLENGE_SERVER_SHUTDOWN_PORT = 5003 #TCP port 5003
     CERTIFICATE_PORT = 5001 #TCP port 5001
 
+
+    IPAddr = "127.0.0.1"
+    if args.challenge=="dns01":
+        #DNS challenge
+        pass
+    elif args.challenge=="http01":
+        IPAddr = args.record
+        print("IPAddr: ", IPAddr)
+
     #Start the DNS server
     print("DNS server starting........")
     server = DNS_Server(args.record, DNS_SERVER_PORT)
@@ -184,7 +193,7 @@ def main():
 
     #Start the challenge server
     print("Challenge server starting........")
-    args = (CHALLENGE_SERVER_PORT, "127.0.0.1")
+    args = (CHALLENGE_SERVER_PORT, IPAddr)
     challenge_server = HTTPChallengeServer()
     server_thread = Thread(target=challenge_server.start_server, args = args)
     server_thread.start()
