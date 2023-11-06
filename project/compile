@@ -5,3 +5,4 @@ echo "Compile your project here"
 pip install dnslib
 pip install Flask
 pip install cryptography
+pip install pycryptodome

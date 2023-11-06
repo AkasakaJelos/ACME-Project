@@ -6,7 +6,7 @@ ShutDownHTTPServer: A HTTP server to receive a shutdown request from the ACME se
 
 """
 
-from flask import Flask, Response, request
+from flask import Flask, Response
 
 #Use flask as the HTTP server to respond to the HTTP-01 challenge
 
@@ -40,7 +40,7 @@ class ShutdownHTTPServer:
         self.register_routes()
 
     def register_routes(self):
-        @self.app.route('/shutdown', methods=['POST'])
+        @self.app.route('/shutdown', methods=['GET'])
         def shutdown():
             self.shutdown_server()
             return 'Server shutting down...'
