@@ -1,8 +1,12 @@
 """
 Acme client implementation
 
-./run dns01 --dir https://example.com/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run dns01 --dir https://example.com/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run http01 --dir https://example.com/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
 
+
+./run dns01 --dir https://example.com/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run http01 --dir https://example.com/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 Easy copy:
 1. JWA: https://datatracker.ietf.org/doc/html/rfc7518
@@ -94,6 +98,7 @@ class ACME_Client:
         self.Port = "5002"
         self.jws = JWS()
         self.directory = {} #newAccount, newNonce, newOrder, newAuthz, revokeCert, keyChange
+        self.kid = None # This will be returned in the response["location"] of the account creation after creating the account
 
 
     def create_account(self):
@@ -143,7 +148,7 @@ class ACME_Client:
         #Create the JWS header, is this protected? I think it's protected
         protected = base64enc(json.dumps({ "alg": "ES256",
                         "jwk": jwk,
-                        "nonce": "nonce",
+                        "nonce": self.get_nonce(), #Get the nonce from the server
                         "url": self.directory["newAccount"]}))
         #Send the data to the server, I still need to encrypt the data using the private key
         #And the JWS signature
@@ -154,17 +159,80 @@ class ACME_Client:
         print("ecdsa:", ecdsa)
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+        print("This is bodyy: ", body)
         response = requests.post(url = self.directory["newAccount"], json= body, headers=self.Header_JWS) #Does this work? Should be JWS
         if response.status_code == 201:
             print("Account created")
             print(response.headers["Location"])
+            self.kid = response.headers["Location"] # assign kid for this matter
             return response.json(), response.headers["Location"]
 
         raise Exception("Account creation failed")
 
-    def applyCert(self): #7.4
-        # TODO: Place new order for the certificate
-        pass
+    def applyCert(self, domains): #7.4
+        """
+       POST /acme/new-order HTTP/1.1
+       Host: example.com
+       Content-Type: application/jose+json
+
+       {
+         "protected": base64url({
+           "alg": "ES256",
+           "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+           "nonce": "5XJ1L3lEkMG7tR6pA00clA",
+           "url": "https://example.com/acme/new-order"
+         }),
+         "payload": base64url({
+           "identifiers": [
+             { "type": "dns", "value": "www.example.org" },
+             { "type": "dns", "value": "example.org" }
+           ],
+           "notBefore": "2016-01-01T00:04:00+04:00",
+           "notAfter": "2016-01-08T00:04:00+04:00"
+         }),
+         "signature": "H6ZXtGjTZyUnPeKn...wEA4TklBdh3e454g"
+       }
+        :return:
+        """
+        account_key = ECC.generate(curve='P-256')  # Generate the key pair for the account, need to be FREEEEESSHHHH
+        jwk = self.get_jwk(account_key)  # JWK of the account key
+
+        # Create the JWS header, is this protected? I think it's protected
+        protected = base64enc(json.dumps({"alg": "ES256",
+                                          "kid ": self.kid, #How to get that???
+                                          "nonce": self.get_nonce(),  # Get the nonce from the server
+                                          "url": self.directory["newAccount"]}))
+        #Create payload
+        identifiers = []
+        for domain in domains: #We have multiple domains for this task
+            identifiers.append({"type": "dns", "value": domain})
+
+        payload = base64enc(json.dumps(
+            {"identifiers": identifiers}))  # We want to have the url for the assign cert
+
+        #Sign the body
+        sig, ecdsa = self.sign_body(protected, payload)
+        print("sig: ", sig)
+        print("ecdsa:", ecdsa)
+        # Get the full body
+        body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+
+        #Send the request
+
+        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.Header_JWS)  # Does this work? Should be JWS
+
+        if response.status_code == 201:
+            print("Order created")
+            print(response.headers["Location"])
+            return response.json(), response.headers["Location"] #order and url
+
+        raise Exception("Order creation failed")
+
+
+
+
+
+
 
     def pre_authorization(self): #Pre-authorization,
         #TODO: Get the authorization
@@ -183,14 +251,15 @@ class ACME_Client:
         pass
 
 
-    #---------------------Helper functions---------------------
+    #--------------------------Helper functions--------------------------
     def get_nonce(self):
         """
         Get the nonce from the server
         :return:
         """
-        response = self.client.head("http://" + self.Host+ ":" + self.PORT +"/acme/new-nonce")
+        response = self.get_url_(self.directory["newNonce"])
         nonce = response.headers["Replay-Nonce"]
+        print(nonce)
         return nonce
 
 
@@ -209,7 +278,7 @@ class ACME_Client:
         return jwk
     def get_url_(self,url):
         url_ = self.client.get(url, headers=self.Header)
-        if url_.status_code == 200:
+        if url_.status_code == 200 or url_.status_code == 204:
             return url_.json()
         else:
             raise Exception("Error getting url")
@@ -300,6 +369,8 @@ def main():
     #---------------------Start the acme server---------------------
     server = requests.Session()
     server.verify = 'pebble.minica.pem'
+    #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
+    #print(server_response.json())
     acme = ACME_Client(server)
     #Create account
 
@@ -310,13 +381,23 @@ def main():
     print(acme.directory)
     account = acme.create_account()
     print(account)
-    if not account.ok:
+    if not account:
         print("Account creation failed")
         return
     print("SUCCESS WITH ACCOUNT CREATION")
 
 
-    #TODO: Apply certificate issuance
+    #Apply certificate issuance
+    cert_order, cert_url = acme.applyCert(args.domain)
+    print(cert_order)
+    if not cert_order:
+        print("Certificate order failed")
+        return
+    print("SUCCESS WITH CERTIFICATE ORDER")
+
+
+
+
     #TODO: Identifier authorization
     #TODO: Download Certificate
     #TODO: Revoke Certificate
