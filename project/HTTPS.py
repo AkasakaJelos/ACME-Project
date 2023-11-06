@@ -8,14 +8,22 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 
-class Certificate_HTTPS:
-    def __init__(self, ip, port):
-        self.IP = ip
-        self.port = port
+from flask import Flask, requests
 
-    def startHTTPServer(self):
-        #TODO: Start the HTTP server
-        pass
+class Certificate_HTTPS:
+    def __init__(self):
+        self.server = Flask(__name__)
+        self.cert_server()
+
+
+    def cert_server(self):
+        @self.server.route("/")
+        def shutdown():
+            print ("HTTPS server is running")
+
+
+    def startHTTPServer(self, host, port, key, cert):
+        self.server.run(host = host, port = port, key = key, cert = cert)
     def GenerateCSRForServer(self):
         #Generate the key for the server
         self.key = rsa.generate_private_key(
@@ -40,12 +48,22 @@ class Certificate_HTTPS:
         ).sign(self.key, hashes.SHA256())
         return self.key, self.csr
 
-    def stopHTTPServer(self):
-        #TODO: Start the HTTP server
-        #Stops the HTTP server
-        pass
-    def manage_certificate(self):
-    #TODO: Manage the certificate
-        pass
 
+
+class ShutdownHTTPSServer:
+    def __init__(self):
+        self.app = Flask(__name__)
+        self.register_routes()
+
+    def register_routes(self):
+        @self.app.route('/shutdown', methods=['POST'])
+        def shutdown():
+            shutdown_func = requests.environ.get('werkzeug.server.shutdown')
+            if shutdown_func is None:
+                raise RuntimeError('Not running with the Werkzeug Server')
+            self.shutdown_server()
+            return 'Server shutting down...'
+
+    def shutdown_server(self, port, host, cert, key):
+        self.app.run(port=port, host=host, ssl_ = (cert, key), threaded=True) #Shutting down the server.
 

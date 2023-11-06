@@ -94,8 +94,6 @@ class ACME_Client:
         self.client = client
         self.Header_JWS = {"User-Agent": "ACME Client", "Content-Type": "application/jose+json"}
         self.Header = {"User-Agent": "ACME Client"}
-        self.Host = "example.com"
-        self.Port = "5002"
         self.jws = JWS()
         self.directory = {} #newAccount, newNonce, newOrder, newAuthz, revokeCert, keyChange
         self.kid = None # This will be returned in the response["location"] of the account creation after creating the account
@@ -194,9 +192,6 @@ class ACME_Client:
        }
         :return:
         """
-        account_key = ECC.generate(curve='P-256')  # Generate the key pair for the account, need to be FREEEEESSHHHH
-        jwk = self.get_jwk(account_key)  # JWK of the account key
-
         # Create the JWS header, is this protected? I think it's protected
         protected = base64enc(json.dumps({"alg": "ES256",
                                           "kid ": self.kid, #How to get that???
@@ -230,25 +225,142 @@ class ACME_Client:
 
 
 
+    def download_cert(self, cert_url, key, key_path, cert_path): #7.4.2
+        """
 
+           POST /acme/cert/mAt3xBGaobw HTTP/1.1
+           Host: example.com
+           Content-Type: application/jose+json
+           Accept: application/pem-certificate-chain
+
+           {
+             "protected": base64url({
+               "alg": "ES256",
+               "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+               "nonce": "uQpSjlRb4vQVCjVYAyyUWg",
+               "url": "https://example.com/acme/cert/mAt3xBGaobw"
+             }),
+             "payload": "",
+             "signature": "nuSDISbWG8mMgE7H...QyVUL68yzf3Zawps"
+           }
+
+        :return:
+        """
+        #Download cert
+        protected = base64enc(json.dumps({"alg": "ES256",
+                                            "kid ": self.kid,
+                                            "nonce": self.get_nonce(),  # Get the nonce from the server
+                                            "url": cert_url}))
+
+        payload = base64enc(json.dumps({"payload": ""}))  # It is nothing
+
+        #Sign the body
+        sig, ecdsa = self.sign_body(protected, payload)
+        print("sig: ", sig)
+        print("ecdsa:", ecdsa)
+        # Get the full body
+        body = json.dumps({"protected": protected, "payload": payload, "signature": sig}) #Body generated
+        print("This is bodyy: ", body)
+
+        #Send the request
+        response = requests.post(url=cert_url, json=body, headers=self.Header_JWS)
+
+
+        if response.status_code == 200:
+            #Write the certificate into the file
+            cert = response.content
+            print(cert)
+            #Write cert path into the file
+            with open(cert_path, "wb") as f:
+                f.write(cert)
+            #Write key path into the file
+            with open(key_path, "wb") as f:
+                f.write(cert.private_bytes(
+                    encodings = serialization.Encoding.PEM,
+                    format = serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm = serialization.NoEncryption(),
+                ))
+
+            print("Certificate SUCCESSFULLY downloaded")
+            return cert
+
+        raise Exception("Certificate download failed")
 
 
 
     def pre_authorization(self): #Pre-authorization,
+        """
+           POST /acme/authz/PAniVnsZcis HTTP/1.1
+           Host: example.com
+           Content-Type: application/jose+json
+
+         {
+             "protected": base64url({
+             "alg": "ES256",
+             "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+                "nonce": "uQpSjlRb4vQVCjVYAyyUWg",
+             "url": "https://example.com/acme/authz/PAniVnsZcis"
+            }),
+            "payload": "",
+            "signature": "nuSDISbWG8mMgE7H...QyVUL68yzf3Zawps"
+         }
+        :return:
+        """
+        protected = base64enc(json.dumps({"alg": "ES256",
+                                          "kid ": self.kid,
+                                          "nonce": self.get_nonce(),  # Get the nonce from the server
+                                          "url": self.directory["newOrder"]}))
+        payload = base64enc(json.dumps({"payload": ""}))  # It is nothing
+
+        #Sign the body
+        sig, ecdsa = self.sign_body(protected, payload)
+        print("sig: ", sig)
+        print("ecdsa:", ecdsa)
+        # Get the full body
+        body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+        #TODO: Implement the rest of the function
+        return body
+
+
+
+
+
+    def authorization(self):
+
         #TODO: Get the authorization
+
+
+
         pass
 
-    def download_cert(self): #7.4.2
-        #TODO: Get the challenge
-        pass
+
 
     def revokeCert(self): #7.5
-        # TODO:Revoke the certificate
+        """
+       POST /acme/revoke-cert HTTP/1.1
+       Host: example.com
+       Content-Type: application/jose+json
+
+       {
+         "protected": base64url({
+           "alg": "ES256",
+           "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+           "nonce": "JHb54aT_KTXBWQOzGYkt9A",
+           "url": "https://example.com/acme/revoke-cert"
+         }),
+         "payload": base64url({
+           "certificate": "MIIEDTCCAvegAwIBAgIRAP8...",
+           "reason": 4
+         }),
+         "signature": "Q1bURgJoEslbD1c5...3pYdSMLio57mQNN4"
+       }
+
+        Don't think we use cert's key pair.....
+        :return:
+        """
         pass
 
-    def keyChange(self):
-        # TODO: Cahnge the key of the account
-        pass
+
 
 
     #--------------------------Helper functions--------------------------
@@ -294,6 +406,48 @@ class ACME_Client:
         ecdsa = DSS.new(key, 'fips-186-3') #Sign the data using the private key
         return base64enc(ecdsa.sign(JWS.H("{}.{}".format(header,payload), "ascii"))), ecdsa #Sign.sign, love it
 
+    def https_challenge(self):#8.3
+        """
+        type (required, string):  The string "http-01".
+
+           token (required, string):  A random value that uniquely identifies
+              the challenge.  This value MUST have at least 128 bits of entropy.
+              It MUST NOT contain any characters outside the base64url alphabet
+              and MUST NOT include base64 padding characters ("=").  See
+              [RFC4086] for additional information on randomness requirements.
+
+           {
+             "type": "http-01",
+             "url": "https://example.com/acme/chall/prV_B7yEyA4",
+             "status": "pending",
+             "token": "LoqXcYV8q5ONbJQxbmR7SCTNo3tiAXDfowyjxAjEuX0"
+           }
+
+
+        :return:
+        """
+        #TODO: Implement the https challenge
+        pass
+
+    def dns_challenge(self): #8.4
+        """  type (required, string):  The string "dns-01".
+
+           token (required, string):  A random value that uniquely identifies
+              the challenge.  This value MUST have at least 128 bits of entropy.
+              It MUST NOT contain any characters outside the base64url alphabet,
+              including padding characters ("=").  See [RFC4086] for additional
+              information on randomness requirements.
+
+           {
+             "type": "dns-01",
+             "url": "https://example.com/acme/chall/Rg5dV14Gh1Q",
+             "status": "pending",
+             "token": "evaGxfADs6pSRb2LAv9IZf17Dt3juxGJ-PCt92wr-oA"
+           }
+        """
+        #TODO: Implement the dns challenge
+        pass
+
 
 
 
@@ -334,7 +488,7 @@ def main():
     parse.add_argument('-u', '--dir', help='The directory you want to get certified', required=True)
     parse.add_argument('-c', '--record', help='Only challenge type', required=True)
     parse.add_argument('-d', '--domain', help='The domain you want to access.', action='append', required=True)
-    parse.add_argument('-r', '--certificate',help='certificate', required=False)
+    parse.add_argument('-r', '--revoke',help='certificate revokation, for dns and https', required=False)
     args = parse.parse_args()
 
     DNS_SERVER_PORT = 10053 #UDP port 10053
@@ -399,6 +553,7 @@ def main():
 
 
     #TODO: Identifier authorization
+
     #TODO: Download Certificate
     #TODO: Revoke Certificate
 
