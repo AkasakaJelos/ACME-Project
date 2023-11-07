@@ -19,7 +19,7 @@ class DNS_Resolver:
     def __init__(self):
         self.zones = []
 
-    def dns_resolve(self, request, handler):
+    def resolve(self, request, handler): #The name resolve is important and has to be resolve!
         reply = request.reply()
         for z in self.zones:
             reply.add_answer(*dnslib.RR.fromZone(z))
