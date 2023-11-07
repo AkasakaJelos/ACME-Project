@@ -388,12 +388,20 @@ class ACME_Client:
             "y": base64enc(key.pointQ.y.to_bytes()),
         }
         return jwk
-    def get_url_(self,url):
+
+    def get_url_(self, url):
         url_ = self.client.get(url, headers=self.Header)
-        if url_.status_code == 200 or url_.status_code == 204:
-            return url_.json()
+        if url_.status_code == 200:
+            try:
+                return url_.json()
+            except json.decoder.JSONDecodeError:
+                raise Exception("Received non-JSON response")
+        elif url_.status_code == 204:
+            return {}  #Empty response
         else:
-            raise Exception("Error getting url")
+            raise Exception(f"Error getting URL, status code: {url_.status_code}")
+
+
 
     def sign_body(self, header, payload, key):
         """
