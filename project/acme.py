@@ -568,7 +568,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    server.verify = 'pebble.minica.pem'
+    #server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
     acme = ACME_Client(server)
