@@ -159,7 +159,7 @@ class ACME_Client:
         #And the JWS signature
         self.sign = DSS.new(self.account_key, 'fips-186-3') #Sign the data using the private key
         payload = base64enc(json.dumps({"termsOfServiceAgreed": True})) #Add the payload, ignore the contact to
-        sig, ecdsa = self.sign_body(protected, payload)
+        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         #Get the full body
