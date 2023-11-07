@@ -55,7 +55,6 @@ def base64enc(payload):
 
 def H(data, encoding):
     # hash function using SHA256 encoding, used for the DNS challenge and more
-    #TODO: Test
     if isinstance(data, str):
         data = data.encode(encoding)
     Hash = SHA256.new(data) #Added string encode as it could be bytes. Used for the DNS challenge
@@ -94,12 +93,12 @@ Main implementation of the ACME client
                      
 The sequence will be ordered as following according to RFC8555: 
 
-1. Account resources: create_account
-2. Order resources: create_order, get_order, finalize_order
-3. Authorization resources: get_authorization
-4. Challenge resources: get_challenge, respond_challenge
-5. Certificate resources: download_certificate, revoke_certificate
-6. Key resources: get_key, update_key
+1. Account resources: create_account (status 201)
+2. Order resources: create_order, get_order, finalize_order (status 201)
+3. Authorization resources: get_authorization (status 200)
+4. Challenge resources: get_challenge, respond_challenge (status 200)
+5. Certificate resources: download_certificate, revoke_certificate (status 200)
+6. Key resources: get_key, update_key (status 200)
 """
 class ACME_Client:
     def __init__(self,client):
@@ -175,7 +174,7 @@ class ACME_Client:
         response = requests.post(url = self.directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
         if response.status_code == 201:
             print("Account created")
-            print(response.headers["Location"])
+            print("That's kid: ", response.headers["Location"])
             self.kid = response.headers["Location"] # assign kid for this matter
             return response.json(), response.headers["Location"]
 
@@ -208,7 +207,7 @@ class ACME_Client:
         """
         # Create the JWS header, is this protected? I think it's protected
         protected = base64enc(json.dumps({"alg": "ES256",
-                                          "kid ": self.kid, #How to get that???
+                                          "kid ": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
                                           "url": self.directory["newAccount"]}))
         #Create payload
@@ -261,6 +260,8 @@ class ACME_Client:
         :return:
         """
         #Download cert
+        if self.account_key is None:
+            raise Exception("No account key, you may need to create a new account for that, or creating account has been failed")
         protected = base64enc(json.dumps({"alg": "ES256",
                                             "kid ": self.kid,
                                             "nonce": self.get_nonce(),  # Get the nonce from the server
@@ -279,10 +280,9 @@ class ACME_Client:
         #Send the request
         response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header)
 
-
         if response.status_code == 200:
             #Write the certificate into the file
-            cert = response.content
+            cert = response.content #Get the certificate
             print(cert)
             #Write cert path into the file
             with open(cert_path, "wb") as f:
@@ -359,7 +359,7 @@ class ACME_Client:
 
 
 
-    def revokeCert(self): #7.5
+    def revokeCert(self, cert): #7.5
         """
        POST /acme/revoke-cert HTTP/1.1
        Host: example.com
@@ -382,6 +382,10 @@ class ACME_Client:
         Don't think we use cert's key pair.....
         :return:
         """
+        pass
+
+
+    def keyChange(self):
         pass
 
 
@@ -568,7 +572,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    #server.verify = 'pebble.minica.pem'
+    server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
     acme = ACME_Client(server)
