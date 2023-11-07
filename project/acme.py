@@ -46,7 +46,7 @@ from JWS import JWS
 
 #One should use urlsafe base64 encoding from FAQ
 def base64enc(payload):
-    return urlsafe_b64encode(payload if isinstance(payload,bytes) else payload).decode('utf8').rstrip("=")
+    return urlsafe_b64encode(payload.encode('utf8') if not isinstance(payload,bytes) else payload).decode('utf8').rstrip("=")
 
 def H( data, encoding):
     # hash function using SHA256 encoding, used for the DNS challenge and more
@@ -415,6 +415,7 @@ class ACME_Client:
             except json.decoder.JSONDecodeError:
                 raise Exception("Received non-JSON response")
         elif url_.status_code == 204:
+            print(url_)
             return url_  #Empty response
         else:
             raise Exception(f"Error getting URL, status code: {url_.status_code}")
