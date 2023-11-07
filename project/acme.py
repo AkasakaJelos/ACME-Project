@@ -48,6 +48,12 @@ from JWS import JWS
 def base64enc(payload):
     return urlsafe_b64encode(payload if isinstance(payload,bytes) else payload).decode('utf8').rstrip("=")
 
+def H( data, encoding):
+    # hash function using SHA256 encoding, used for the DNS challenge and more
+    #TODO: Test
+    Hash = SHA256.new((data.encode(encoding)))
+    print(Hash)
+    return Hash
 
 
 """
@@ -92,11 +98,12 @@ class ACME_Client:
     def __init__(self,client):
         #Add things if they are useful
         self.client = client
-        self.Header_JWS = {"User-Agent": "ACME Client", "Content-Type": "application/jose+json"}
+        self.JOSE_Header = {"User-Agent": "ACME Client", "Content-Type": "application/jose+json"}
         self.Header = {"User-Agent": "ACME Client"}
-        self.jws = JWS()
+        #self.jws = JWS()
         self.directory = {} #newAccount, newNonce, newOrder, newAuthz, revokeCert, keyChange
         self.kid = None # This will be returned in the response["location"] of the account creation after creating the account
+        self.account_key = None
 
 
     def create_account(self):
@@ -137,10 +144,10 @@ class ACME_Client:
         Key should be fresh in every run, so we will have to create new sign algo and account key each time we launch something...
         """
 
-        account_key = ECC.generate(curve='P-256') #Generate the key pair for the account, need to be FREEEEESSHHHH
+        self.account_key = ECC.generate(curve='P-256') #Generate the key pair for the account, need to be FREEEEESSHHHH
         #x, y = account_key.pointQ.x, account_key.pointQ.y #ECC curve point x and y, used for debugging
         #print("x: ", x, "y: ", y)
-        jwk = self.get_jwk(account_key) #JWK of the account key
+        jwk = self.get_jwk(self.account_key) #JWK of the account key
         #print(jwk)
 
         #Create the JWS header, is this protected? I think it's protected
@@ -150,7 +157,7 @@ class ACME_Client:
                         "url": self.directory["newAccount"]}))
         #Send the data to the server, I still need to encrypt the data using the private key
         #And the JWS signature
-        self.sign = DSS.new(account_key, 'fips-186-3') #Sign the data using the private key
+        self.sign = DSS.new(self.account_key, 'fips-186-3') #Sign the data using the private key
         payload = base64enc(json.dumps({"termsOfServiceAgreed": True})) #Add the payload, ignore the contact to
         sig, ecdsa = self.sign_body(protected, payload)
         print("sig: ", sig)
@@ -158,7 +165,7 @@ class ACME_Client:
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
-        response = requests.post(url = self.directory["newAccount"], json= body, headers=self.Header_JWS) #Does this work? Should be JWS
+        response = requests.post(url = self.directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
         if response.status_code == 201:
             print("Account created")
             print(response.headers["Location"])
@@ -214,7 +221,7 @@ class ACME_Client:
 
         #Send the request
 
-        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.Header_JWS)  # Does this work? Should be JWS
+        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
 
         if response.status_code == 201:
             print("Order created")
@@ -263,7 +270,7 @@ class ACME_Client:
         print("This is bodyy: ", body)
 
         #Send the request
-        response = requests.post(url=cert_url, json=body, headers=self.Header_JWS)
+        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header)
 
 
         if response.status_code == 200:
@@ -288,7 +295,7 @@ class ACME_Client:
 
 
 
-    def pre_authorization(self): #Pre-authorization,
+    def pre_authorization(self, domains): #Pre-authorization,
         """
            POST /acme/authz/PAniVnsZcis HTTP/1.1
            Host: example.com
@@ -312,14 +319,21 @@ class ACME_Client:
                                           "url": self.directory["newOrder"]}))
         payload = base64enc(json.dumps({"payload": ""}))  # It is nothing
 
+
         #Sign the body
         sig, ecdsa = self.sign_body(protected, payload)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-        #TODO: Implement the rest of the function
-        return body
+        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
+
+        if response.status_code == 200:
+            print("Order created")
+            print(response.headers["Location"])
+            return response.json(), response.headers["Location"]
+
+        raise Exception("Order creation failed")
 
 
 
@@ -328,6 +342,9 @@ class ACME_Client:
     def authorization(self):
 
         #TODO: Get the authorization
+
+        #Generate key authorization
+        key_autho = self.get_jwk(self, self.key)
 
 
 
@@ -370,6 +387,7 @@ class ACME_Client:
         :return:
         """
         response = self.get_url_(self.directory["newNonce"])
+        print(response.headers)
         nonce = response.headers["Replay-Nonce"]
         print(nonce)
         return nonce
@@ -397,7 +415,7 @@ class ACME_Client:
             except json.decoder.JSONDecodeError:
                 raise Exception("Received non-JSON response")
         elif url_.status_code == 204:
-            return {}  #Empty response
+            return url_  #Empty response
         else:
             raise Exception(f"Error getting URL, status code: {url_.status_code}")
 
@@ -414,7 +432,7 @@ class ACME_Client:
         ecdsa = DSS.new(key, 'fips-186-3') #Sign the data using the private key
         return base64enc(ecdsa.sign(JWS.H("{}.{}".format(header,payload), "ascii"))), ecdsa #Sign.sign, love it
 
-    def https_challenge(self):#8.3
+    def https_challenge(self, challenge, key_authorization,http_server):#8.3
         """
         type (required, string):  The string "http-01".
 
@@ -434,10 +452,14 @@ class ACME_Client:
 
         :return:
         """
-        #TODO: Implement the https challenge
-        pass
+        #Implement the https challenge
+        key_auth = f"{challenge['token']}.{key_authorization}"
+        http_server.add_auth(challenge["token"], key_auth)
+        return challenge["url"], key_auth
 
-    def dns_challenge(self): #8.4
+
+
+    def dns_challenge(self, challenge, key_authorization, dns_server): #8.4
         """  type (required, string):  The string "dns-01".
 
            token (required, string):  A random value that uniquely identifies
@@ -453,8 +475,14 @@ class ACME_Client:
              "token": "evaGxfADs6pSRb2LAv9IZf17Dt3juxGJ-PCt92wr-oA"
            }
         """
-        #TODO: Implement the dns challenge
-        pass
+        # Implement the dns challenge response
+        key_auth = f"{challenge['token']}.{key_authorization}"
+        key_auth = base64enc(H(data = key_auth, encoding='ascii').digest())
+        dns_server.resolve_update(f"__acme.{challenge['identifier']['value']}", key_auth, "TXT")
+        print("key auth: ", key_auth)
+        return challenge["url"], key_auth
+
+
 
 
 

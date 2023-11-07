@@ -28,6 +28,10 @@ class HTTPChallengeServer:
             return response
         return "Token not found"
 
+    def add_auth(self, token, key_auth):
+        self.challenge[token] = key_auth
+
+
     def start_server(self, port, host):
         self.app.run(port=port, host=host, threaded=True)
 

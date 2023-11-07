@@ -21,10 +21,4 @@ class JWS:
         #TODO: Implement the verify function
         pass
 
-    def H(self, data, encoding):
-        # hash function using SHA256 encoding, used for the DNS challenge and more
-        #TODO: Test
-        Hash = SHA256.new((data.encode(encoding)))
-        print(Hash)
-        return Hash
 
