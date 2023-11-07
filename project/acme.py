@@ -46,12 +46,19 @@ from JWS import JWS
 
 #One should use urlsafe base64 encoding from FAQ
 def base64enc(payload):
-    return urlsafe_b64encode(payload.encode('utf8') if not isinstance(payload,bytes) else payload).decode('utf8').rstrip("=")
+    if isinstance(payload, str):
+        payload = payload.encode('utf8')
+    encoded = urlsafe_b64encode(payload)
+    print("_This is encoded: ", encoded)
+    decoded = encoded.decode('utf8').rstrip("=")
+    return decoded
 
-def H( data, encoding):
+def H(data, encoding):
     # hash function using SHA256 encoding, used for the DNS challenge and more
     #TODO: Test
-    Hash = SHA256.new((data.encode(encoding)))
+    if isinstance(data, str):
+        data = data.encode(encoding)
+    Hash = SHA256.new(data) #Added string encode as it could be bytes. Used for the DNS challenge
     print(Hash)
     return Hash
 
@@ -213,7 +220,7 @@ class ACME_Client:
             {"identifiers": identifiers}))  # We want to have the url for the assign cert
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload)
+        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         # Get the full body
@@ -232,7 +239,7 @@ class ACME_Client:
 
 
 
-    def download_cert(self, cert_url, key, key_path, cert_path): #7.4.2
+    def download_cert(self, cert_url,key, key_path, cert_path): #7.4.2
         """
 
            POST /acme/cert/mAt3xBGaobw HTTP/1.1
@@ -262,7 +269,7 @@ class ACME_Client:
         payload = base64enc(json.dumps({"payload": ""}))  # It is nothing
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload)
+        sig, ecdsa = self.sign_body(protected, payload, key = key)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         # Get the full body
@@ -282,7 +289,7 @@ class ACME_Client:
                 f.write(cert)
             #Write key path into the file
             with open(key_path, "wb") as f:
-                f.write(cert.private_bytes(
+                f.write(self.account_key.private_byte(
                     encodings = serialization.Encoding.PEM,
                     format = serialization.PrivateFormat.TraditionalOpenSSL,
                     encryption_algorithm = serialization.NoEncryption(),
@@ -321,7 +328,7 @@ class ACME_Client:
 
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload)
+        sig, ecdsa = self.sign_body(protected, payload, key = self.account_key)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         # Get the full body
@@ -344,7 +351,7 @@ class ACME_Client:
         #TODO: Get the authorization
 
         #Generate key authorization
-        key_autho = self.get_jwk(self, self.key)
+        key_autho = self.get_jwk(self.account_key)
 
 
 
@@ -431,7 +438,10 @@ class ACME_Client:
         if key is None:
             raise Exception("No account key, you may need to create a new account for that...will never happen I think")
         ecdsa = DSS.new(key, 'fips-186-3') #Sign the data using the private key
-        return base64enc(ecdsa.sign(JWS.H("{}.{}".format(header,payload), "ascii"))), ecdsa #Sign.sign, love it
+        message = f"{header}.{payload}"
+        hashed_message = H(message, encoding='ascii')
+        sign_message = ecdsa.sign(hashed_message)
+        return base64enc(sign_message), ecdsa #Sign.sign, hate it, bugs are here
 
     def https_challenge(self, challenge, key_authorization,http_server):#8.3
         """
@@ -478,12 +488,11 @@ class ACME_Client:
         """
         # Implement the dns challenge response
         key_auth = f"{challenge['token']}.{key_authorization}"
-        key_auth = base64enc(H(data = key_auth, encoding='ascii').digest())
+        message = H(data = key_auth, encoding='ascii').digest()
+        key_auth = base64enc(message)
         dns_server.resolve_update(f"__acme.{challenge['identifier']['value']}", key_auth, "TXT")
         print("key auth: ", key_auth)
         return challenge["url"], key_auth
-
-
 
 
 
@@ -505,7 +514,7 @@ def run_dns_server(server, args):
 
 #Stop the dns server
 def stop_dns_server(server):
-    server.shutdown_server()
+    server.shutdown()
 
 
 
