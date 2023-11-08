@@ -181,11 +181,12 @@ class ACME_Client:
         if response.status_code == 201:
             print("Account created")
             print("That's kid: ", response.headers["Location"])
+            self.kid = response.headers["Location"]
             return response.json(), response.headers["Location"]
 
         raise Exception("Account creation failed")
 
-    def applyCert(self, domains, kid): #7.4
+    def applyCert(self, domains): #7.4
         """
        POST /acme/new-order HTTP/1.1
        Host: example.com
@@ -210,14 +211,13 @@ class ACME_Client:
        }
         :return:
         """
-        self.kid = kid
         if not self.kid:
              raise Exception("No kid, thus no account created. Please create an account first"  )
         # Create the JWS header, is this protected? I think it's protected
         if not self.directory:
             raise Exception("Directory empty, please get the directory first")
         protected = base64enc(json.dumps({"alg": "ES256",
-                                          "kid ": self.kid,
+                                          "kid": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
                                           "url": self.directory["newOrder"]}))
         #Create payload
@@ -274,7 +274,7 @@ class ACME_Client:
         if self.account_key is None:
             raise Exception("No account key, you may need to create a new account for that, or creating account has been failed")
         protected = base64enc(json.dumps({"alg": "ES256",
-                                            "kid ": self.kid,
+                                            "kid": self.kid,
                                             "nonce": self.get_nonce(),  # Get the nonce from the server
                                             "url": cert_url}))
 
@@ -332,7 +332,7 @@ class ACME_Client:
         :return:
         """
         protected = base64enc(json.dumps({"alg": "ES256",
-                                          "kid ": self.kid,
+                                          "kid": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
                                           "url": self.directory["newOrder"]}))
         payload = base64enc(json.dumps({"payload": ""}))  # It is nothing
@@ -714,7 +714,7 @@ def main():
         print("Error getting directory")
         return
     print("this is the directory", directory)
-    account, kid = acme.create_account(directory)
+    account, _ = acme.create_account(directory)
     print("Account is this: ", account)
     if not account:
         print("Account creation failed")
@@ -723,7 +723,7 @@ def main():
 
 
     #Apply certificate issuance
-    cert_order, cert_url = acme.applyCert(args.domain, kid)
+    cert_order, cert_url = acme.applyCert(args.domain)
     print(cert_order)
     if not cert_order:
         print("Certificate order failed")
