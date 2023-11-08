@@ -149,6 +149,7 @@ class ACME_Client:
         #Create the important aspects of the account you have to send. When do we need to generate new private-public key pair?
         Key should be fresh in every run, so we will have to create new sign algo and account key each time we launch something...
         """
+        self.directory = directory
 
         self.account_key = ECC.generate(curve='P-256') #Generate the key pair for the account, need to be FREEEEESSHHHH
         #x, y = account_key.pointQ.x, account_key.pointQ.y #ECC curve point x and y, used for debugging
@@ -174,8 +175,8 @@ class ACME_Client:
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
-        response = requests.post(self.directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
-        print(response.json())
+        response = requests.post(directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
+        print(response)
         if response.status_code == 201:
             print("Account created")
             print("That's kid: ", response.headers["Location"])
