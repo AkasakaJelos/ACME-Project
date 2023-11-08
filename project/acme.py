@@ -110,6 +110,7 @@ class ACME_Client:
         self.directory = {} #newAccount, newNonce, newOrder, newAuthz, revokeCert, keyChange
         self.kid = None # This will be returned in the response["location"] of the account creation after creating the account
         self.account_key = None
+        #self.cert = cert
 
 
     def create_account(self, directory):
@@ -349,16 +350,55 @@ class ACME_Client:
 
 
 
-    def authorization(self):
+    def authorization_and_challenge_response(self, urls, key_authorization, http_server, dns_server): #7.5
 
-        #TODO: Get the authorization
+        #Get the authorization
+        #TODO: Bug
 
         #Generate key authorization
-        key_autho = self.get_jwk(self.account_key)
+        key_autho = self.get_key_authorization()
 
+        validation_urls = []
+        for url in urls:
+            body = json.dumps({"protected": base64enc(json.dumps({"alg": "ES256",
+                                                                    "kid": self.kid,
+                                                                    "nonce": self.get_nonce(),  # Get the nonce from the server
+                                                                    "url": url})),
+                                 "payload": base64enc(json.dumps({"keyAuthorization": key_authorization})),
+                                 "signature": self.sign_body(base64enc(json.dumps({"alg": "ES256",
+                                                                                        "jwk": key_autho,
+                                                                                        "nonce": self.get_nonce(),  # Get the nonce from the server
+                                                                                        "url": url})),
+                                                             base64enc(json.dumps({"keyAuthorization": key_authorization})),
+                                                             self.account_key)[0]})
+            response = self.client.post(url=url, json=body, headers=self.JOSE_Header)
+            print("response for json: ", response.json())
+            if response.status_code == 200:
+                print("Collect Challenge")
+                challenges = response.json()["challenges"]
 
+                for cha in challenges:
+                    if cha["type"] == "http-01":
+                        validation_urls.append(self.https_challenge(cha, key_authorization, http_server))
+                    elif cha["type"] == "dns-01":
+                        validation_urls.append(self.dns_challenge(cha, key_authorization, dns_server))
 
-        pass
+            else:
+                raise Exception("Authorization failed")
+            if not validation_urls:
+                raise Exception("No validation urls")
+
+        for url in validation_urls:
+            #TODO: Need to respond to the challenges
+            response = self.client.get(url)
+            if response.status_code == 200:
+                print("Challenge success, next one")
+            else:
+                raise Exception("Challenge failed")
+
+        print("Challenge success!!! All done!!!")
+        return True
+
 
 
 
@@ -385,7 +425,32 @@ class ACME_Client:
         Don't think we use cert's key pair.....
         :return:
         """
-        pass
+        cert_url = self.directory["revokeCert"]
+        #Create encoded url for cert
+        encoded_cert = base64enc(cert)
+        #Create the JWS header, is this protected? I think it's protected
+        protected = base64enc(json.dumps({"alg": "ES256",
+                                            "kid ": self.kid,
+                                            "nonce": self.get_nonce(),  # Get the nonce from the server
+                                            "url": cert_url}))
+        #Create payload
+        payload = base64enc(json.dumps(
+            {"certificate": encoded_cert, "reason": 4}))
+
+        #Sign the body
+        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
+        print("sig: ", sig)
+        print("ecdsa:", ecdsa)
+        # Get the full body
+        body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+        print("This is bodyy of revoking certt: ", body)
+        #Send the request
+        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
+
+        if response.status_code == 200:
+            print("Certificate revoked")
+            return response.json()
+
 
 
     def keyChange(self):
@@ -425,6 +490,23 @@ class ACME_Client:
 
 
     #--------------------------Helper functions--------------------------
+    def get_key_authorization(self):
+        """
+        Get the key authorization, used for the challenge
+        Similar to jwk, the main difference is we need to hash them.
+        :return:
+        """
+        #Get the key authorization
+        key = {
+            "crv": "P-256",
+            "kty": "EC",
+            "x": base64enc(self.account_key.pointQ.x.to_bytes(32, 'big')),
+            "y": base64enc(self.account_key.pointQ.y.to_bytes(32, 'big')),
+        }
+        key_ = json.dumps(key)
+        hash_key = H(data = key_, encoding='ascii').digest()
+        encoded_key = base64enc(hash_key)
+        return encoded_key
     def get_nonce(self):
         """
         Get the nonce from the server
@@ -446,8 +528,8 @@ class ACME_Client:
         jwk = {
             "crv": "P-256",
             "kty": "EC",
-            "x": base64enc(key.pointQ.x.to_bytes()),
-            "y": base64enc(key.pointQ.y.to_bytes()),
+            "x": base64enc(key.pointQ.x.to_bytes(32, 'big')),
+            "y": base64enc(key.pointQ.y.to_bytes(32, 'big')),
         }
         return jwk
 
@@ -534,6 +616,16 @@ class ACME_Client:
         return challenge["url"], key_auth
 
 
+    def finalize_order(self):
+        """
+        Finalize the order
+        :return:
+        """
+        #TODO: finalize the shit
+        pass
+
+
+
 
 
 
@@ -607,7 +699,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    server.verify = 'pebble.minica.pem'
+    #server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
 
@@ -650,6 +742,10 @@ def main():
 
     #TODO: Start the certificate server
     print("Certificate server starting........")
+
+
+    print("Certificate server shutting down........")
+
 
 
     #certificate_path = "project/pebble.minica.pem"
