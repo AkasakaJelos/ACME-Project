@@ -346,7 +346,7 @@ class ACME_Client:
         print("This is the response after applying cert: ", response.json())
         if response.status_code == 200:
             print("Order created")
-            print(response.headers["Location"])
+            print(response.headers["Location"]) #
             return response.json(), response.headers["Location"]
 
         raise Exception("Order creation failed")
@@ -379,19 +379,21 @@ class ACME_Client:
 
         validation_urls = []
         for url in urls:
+            print("Getting the following urls: ", url)
             body = json.dumps({"protected": base64enc(json.dumps({"alg": "ES256",
                                                                     "kid": self.kid,
                                                                     "nonce": self.get_nonce(),  # Get the nonce from the server
                                                                     "url": url})),
                                  "payload": base64enc(json.dumps({})),
                                  "signature": self.sign_body(base64enc(json.dumps({"alg": "ES256",
-                                                                                        "jwk": key_autho,
+                                                                                        "kid": self.kid,
                                                                                         "nonce": self.get_nonce(),  # Get the nonce from the server
                                                                                         "url": url})),
                                                              base64enc(json.dumps({})),
                                                              self.account_key)[0]})
+
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')
-            print("response for json: ", response.json())
+            print("response for json_ challenge collecting phase: ", response.json())
             if response.status_code == 200:
                 print("Collect Challenge")
                 challenges = response.json()["challenges"]
@@ -406,6 +408,7 @@ class ACME_Client:
                 raise Exception("Authorization failed")
             if not validation_urls:
                 raise Exception("No validation urls")
+
 
         for url in validation_urls:
             #TODO: Need to respond to the challenges
@@ -764,7 +767,7 @@ def main():
 
     #Identifier authorization
     key_authorization = acme.get_key_authorization()
-    state = acme.authorization_and_challenge_response(cert_order["authorizations"],key_authorization, server, dns_server)
+    state = acme.authorization_and_challenge_response(cert_order["authorizations"] , key_authorization, server, dns_server)
     if not state:
         print("Authorization failed")
         return
@@ -780,15 +783,6 @@ def main():
 
 
 
-    #Revoke Certificate
-    revoke_state = acme.revokeCert(cert)
-    if not revoke_state:
-        print("Certificate revocation failed")
-        return
-    print("SUCCESS WITH CERTIFICATE REVOCATION")
-
-
-
     #---------------------Start the certificate server---------------------
     #TODO: Stop the server
 
@@ -797,6 +791,16 @@ def main():
 
 
     print("Certificate server shutting down........")
+
+
+    #Revoke Certificate
+    if args.revoke:
+        revoke_state = acme.revokeCert(cert)
+        if not revoke_state:
+            print("Certificate revocation failed")
+            return
+        print("SUCCESS WITH CERTIFICATE REVOCATION")
+
 
 
 
