@@ -540,11 +540,11 @@ class ACME_Client:
     def get_url_(self, url):
         url_ = self.client.get(url, headers=self.Header)
         if url_.status_code == 200:
-            self.directory = url_.json()
-            return url_
+            #self.directory = url_.json()
+            return url_.json()
         elif url_.status_code == 204:
             print(url_) #{}
-            self.directory = url_
+            #self.directory = url_
             return url_  #Empty response
         else:
             raise Exception(f"Error getting URL, status code: {url_.status_code}")
@@ -760,7 +760,7 @@ def main():
     print("DNS server shut down")
 
 
-    #-------------- shutdown the challenge server, why tf 21P?---------------------
+    #-------------- shutdown the challenge server, why tf 21P?---------------------X
 
     print("Challenge server shutting down........")
     shutdown_server = ShutdownHTTPServer()
