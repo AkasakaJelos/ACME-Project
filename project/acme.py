@@ -176,8 +176,8 @@ class ACME_Client:
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
-        response = requests.post(directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
-        print(response)
+        response = requests.get(directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
+        print(response.json())
         if response.status_code == 201:
             print("Account created")
             print("That's kid: ", response.headers["Location"])
@@ -700,7 +700,7 @@ def main():
     #---------------------Start the acme server---------------------
     server = requests.Session()
     server.verify = False
-    #server.verify = 'pebble.minica.pem'
+    server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
 
