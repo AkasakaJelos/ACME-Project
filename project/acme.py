@@ -289,7 +289,7 @@ class ACME_Client:
         print("This is bodyy: ", body)
 
         #Send the request
-        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header, verify='pebble.minica.pem')
+        response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify='pebble.minica.pem')
 
         if response.status_code == 200:
             #Write the certificate into the file
@@ -345,7 +345,7 @@ class ACME_Client:
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
-
+        print("This is the response after applying cert: ", response.json())
         if response.status_code == 200:
             print("Order created")
             print(response.headers["Location"])
@@ -356,9 +356,25 @@ class ACME_Client:
 
 
     def authorization_and_challenge_response(self, urls, key_authorization, http_server, dns_server): #7.5
+        """
+       POST /acme/authz/PAniVnsZcis HTTP/1.1
+       Host: example.com
+       Content-Type: application/jose+json
 
-        #Get the authorization
-        #TODO: Bug
+       {
+         "protected": base64url({
+           "alg": "ES256",
+           "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+           "nonce": "uQpSjlRb4vQVCjVYAyyUWg",
+           "url": "https://example.com/acme/authz/PAniVnsZcis"
+         }),
+         "payload": "",
+         "signature": "nuSDISbWG8mMgE7H...QyVUL68yzf3Zawps"
+       }
+
+
+
+        """
 
         #Generate key authorization
         key_autho = self.get_key_authorization()
@@ -435,7 +451,7 @@ class ACME_Client:
         encoded_cert = base64enc(cert)
         #Create the JWS header, is this protected? I think it's protected
         protected = base64enc(json.dumps({"alg": "ES256",
-                                            "kid ": self.kid,
+                                            "kid": self.kid,
                                             "nonce": self.get_nonce(),  # Get the nonce from the server
                                             "url": cert_url}))
         #Create payload
@@ -647,7 +663,7 @@ def run_dns_server(server, args):
 
 #Stop the dns server
 def stop_dns_server(server):
-    server.shutdown()
+    server.shutdown_server()
 
 
 
@@ -686,8 +702,8 @@ def main():
 
     #---------------------Start the DNS server---------------------
     print("DNS server starting........")
-    server = DNS_Server(args.record, DNS_SERVER_PORT)
-    run_dns_server(server, args)
+    dns_server = DNS_Server(args.record, DNS_SERVER_PORT)
+    run_dns_server(dns_server, args)
     print("DNS server started")
 
     #---------------------Start the challenge server---------------------
@@ -731,6 +747,9 @@ def main():
     print("SUCCESS WITH CERTIFICATE ORDER")
 
 
+    #Download certificate
+
+
 
 
     #TODO: Identifier authorization
@@ -757,7 +776,7 @@ def main():
 
     # ---------------------shutdown the DNS server---------------------
     print("DNS server shutting down........")
-    stop_dns_server(server)
+    stop_dns_server(dns_server)
     print("DNS server shut down")
 
 

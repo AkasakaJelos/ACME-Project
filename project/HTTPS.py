@@ -37,7 +37,6 @@ class Certificate_HTTPS:
             x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"), #State
             x509.NameAttribute(NameOID.LOCALITY_NAME, u"Zurich"), #Locality
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"NetSecProject"), #Organization
-            x509.NameAttribute(NameOID.COMMON_NAME, u"newtwitter.ch"), #Common name
         ])).add_extension(
             x509.SubjectAlternativeName([
                 # Describe what sites we want this certificate for.
