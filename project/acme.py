@@ -1,12 +1,12 @@
 """
 Acme client implementation
 
-./run dns01 --dir https://example.com/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
-./run http01 --dir https://example.com/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run http01 --dir https://0.0.0.0:14000/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 
-./run dns01 --dir https://example.com/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
-./run http01 --dir https://example.com/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run http01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 Easy copy:
 1. JWA: https://datatracker.ietf.org/doc/html/rfc7518
@@ -99,7 +99,7 @@ The sequence will be ordered as following according to RFC8555:
 6. Key resources: get_key, update_key (status 200)
 """
 class ACME_Client:
-    def __init__(self,client):
+    def __init__(self,client, cert):
         #Add things if they are useful
         self.client = client
         self.JOSE_Header = {"User-Agent": "ACME Client", "Content-Type": "application/jose+json"}
@@ -108,7 +108,8 @@ class ACME_Client:
         self.directory = {} #newAccount, newNonce, newOrder, newAuthz, revokeCert, keyChange
         self.kid = None # This will be returned in the response["location"] of the account creation after creating the account
         self.account_key = None
-        #self.cert = cert
+        self.cert = cert
+        self.status_of_order = ["pending", "ready", "processing", "valid", "invalid"]
 
 
     def create_account(self, directory):
@@ -174,7 +175,7 @@ class ACME_Client:
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
-        response = requests.post(directory["newAccount"], data = body, headers=self.JOSE_Header, verify='pebble.minica.pem') #Does this work? Should be JWS
+        response = requests.post(directory["newAccount"], data = body, headers=self.JOSE_Header, verify=self.cert) #Does this work? Should be JWS
         print(response.json())
         if response.status_code == 201:
             print("Account created")
@@ -236,7 +237,7 @@ class ACME_Client:
 
         #Send the request
 
-        response = requests.post(url=self.directory["newOrder"], data=body, headers=self.JOSE_Header, verify='pebble.minica.pem' )  # Does this work? Should be JWS
+        response = requests.post(url=self.directory["newOrder"], data=body, headers=self.JOSE_Header, verify=self.cert )  # Does this work? Should be JWS
         print("Response from order", response.json())
         if response.status_code == 201:
             print("Order created")
@@ -287,7 +288,7 @@ class ACME_Client:
         print("This is bodyy: ", body)
 
         #Send the request
-        response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify='pebble.minica.pem')
+        response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify=self.cert)
 
         if response.status_code == 200:
             #Write the certificate into the file
@@ -342,7 +343,7 @@ class ACME_Client:
         print("ecdsa:", ecdsa)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
+        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
         print("This is the response after applying cert: ", response.json())
         if response.status_code == 200:
             print("Order created")
@@ -370,29 +371,24 @@ class ACME_Client:
          "signature": "nuSDISbWG8mMgE7H...QyVUL68yzf3Zawps"
        }
 
-
-
         """
 
         #Generate key authorization
-        key_autho = self.get_key_authorization()
 
         validation_urls = []
         for url in urls:
+            protected = base64enc(json.dumps({"alg": "ES256",
+                                                "kid": self.kid,
+                                                "nonce": self.get_nonce(),  # Get the nonce from the server
+                                                "url": url}))
+            payload = base64enc(json.dumps({"status": "deactivated"}))
+            sig, ecdsa = self.sign_body(protected, payload, key = self.account_key)
             print("Getting the following urls: ", url)
-            body = json.dumps({"protected": base64enc(json.dumps({"alg": "ES256",
-                                                                    "kid": self.kid,
-                                                                    "nonce": self.get_nonce(),  # Get the nonce from the server
-                                                                    "url": url})),
-                                 "payload": base64enc(json.dumps({})),
-                                 "signature": self.sign_body(base64enc(json.dumps({"alg": "ES256",
-                                                                                        "kid": self.kid,
-                                                                                        "nonce": self.get_nonce(),  # Get the nonce from the server
-                                                                                        "url": url})),
-                                                             base64enc(json.dumps({})),
-                                                             self.account_key)[0]})
-
-            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')
+            body =json.dumps({"protected":protected,
+                                 "payload": payload,
+                                 "signature":sig})
+            print("This is body from url:::", body)
+            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)
             print("response for json_ challenge collecting phase: ", response.json())
             if response.status_code == 200:
                 print("Collect Challenge")
@@ -411,7 +407,7 @@ class ACME_Client:
 
 
         for url in validation_urls:
-            #TODO: Need to respond to the challenges
+            #Need to respond to the challenges
             protected = base64enc(json.dumps({"alg": "ES256",
                                                 "kid": self.kid,
                                                 "nonce": self.get_nonce(),  # Get the nonce from the server
@@ -423,7 +419,7 @@ class ACME_Client:
             print("ecdsa:", ecdsa)
             # Get the full body
             body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')  # Does this work? Should be JWS
+            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
 
             if response.status_code == 200:
                 print("Challenge success, next one")
@@ -434,7 +430,13 @@ class ACME_Client:
         return True
 
 
+    def finalize_order(self):
+        """
+         POST /acme/finalize/zLYh1TB8d7E HTTP/1.1
+            Host: example.com
 
+        :return:
+        """
 
     def revokeCert(self, cert): #7.5
         """
@@ -590,7 +592,10 @@ class ACME_Client:
         if key is None:
             raise Exception("No account key, you may need to create a new account for that...will never happen I think")
         ecdsa = DSS.new(key, 'fips-186-3') #Sign the data using the private key
-        message = f"{header}.{payload}"
+        if payload:
+            message = f"{header}.{payload}"
+        else:
+            message = f"{header}.{{}}"  #If there is no payload
         hashed_message = H(message, encoding='ascii')
         sign_message = ecdsa.sign(hashed_message)
         return base64enc(sign_message), ecdsa #Sign.sign, hate it, bugs are here
@@ -699,13 +704,13 @@ def main():
     parse.add_argument('-r', '--revoke',help='certificate revokation, for dns and https', required=False)
     args = parse.parse_args()
 
-    DNS_SERVER_PORT = 10053 #UDP port 10053
+    DNS_SERVER_PORT = 14000 #UDP port 10053
     CHALLENGE_SERVER_PORT = 5002 #TCP port 5002
     CHALLENGE_SERVER_SHUTDOWN_PORT = 5003 #TCP port 5003
     CERTIFICATE_PORT = 5001 #TCP port 5001
 
 
-    IPAddr = "127.0.0.1" #Default IP address
+    IPAddr = "0.0.0.0" #Default IP address
 
 
     if args.challenge=="dns01":
@@ -731,11 +736,13 @@ def main():
     #---------------------Start the acme server---------------------
     server = requests.Session()
     #server.verify = False
-    server.verify = 'pebble.minica.pem'
+    #server.verify = 'pebble.minica.pem'
+    root_ca = False
+    server.verify= root_ca
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
 
-    acme = ACME_Client(server)
+    acme = ACME_Client(server, root_ca)
     #Create account
 
     directory = acme.get_url_(args.dir)
