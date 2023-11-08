@@ -181,12 +181,11 @@ class ACME_Client:
         if response.status_code == 201:
             print("Account created")
             print("That's kid: ", response.headers["Location"])
-            self.kid = response.headers["Location"] # assign kid for this matter
             return response.json(), response.headers["Location"]
 
         raise Exception("Account creation failed")
 
-    def applyCert(self, domains): #7.4
+    def applyCert(self, domains, kid): #7.4
         """
        POST /acme/new-order HTTP/1.1
        Host: example.com
@@ -211,6 +210,7 @@ class ACME_Client:
        }
         :return:
         """
+        self.kid = kid
         if not self.kid:
              raise Exception("No kid, thus no account created. Please create an account first"  )
         # Create the JWS header, is this protected? I think it's protected
@@ -234,6 +234,7 @@ class ACME_Client:
         print("ecdsa:", ecdsa)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+        print("Thsi is the body from newOrder: ", body)
 
         #Send the request
 
@@ -713,7 +714,7 @@ def main():
         print("Error getting directory")
         return
     print("this is the directory", directory)
-    account = acme.create_account(directory)
+    account, kid = acme.create_account(directory)
     print("Account is this: ", account)
     if not account:
         print("Account creation failed")
@@ -722,7 +723,7 @@ def main():
 
 
     #Apply certificate issuance
-    cert_order, cert_url = acme.applyCert(args.domain)
+    cert_order, cert_url = acme.applyCert(args.domain, kid)
     print(cert_order)
     if not cert_order:
         print("Certificate order failed")
