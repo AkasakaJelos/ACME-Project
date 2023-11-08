@@ -616,7 +616,7 @@ class ACME_Client:
         return challenge["url"], key_auth
 
 
-    def finalize_order(self):
+    def finalize_order(self, order_url, csr_der):
         """
         Finalize the order
         :return:
@@ -699,6 +699,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
+    server.verify = False
     #server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
