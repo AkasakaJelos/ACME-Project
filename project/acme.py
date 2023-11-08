@@ -154,6 +154,7 @@ class ACME_Client:
         #x, y = account_key.pointQ.x, account_key.pointQ.y #ECC curve point x and y, used for debugging
         #print("x: ", x, "y: ", y)
         jwk = self.get_jwk(self.account_key) #JWK of the account key
+        print("JWK: ", jwk)
         #print(jwk)
 
         #Create the JWS header, is this protected? I think it's protected
@@ -161,6 +162,8 @@ class ACME_Client:
                         "jwk": jwk,
                         "nonce": self.get_nonce(), #Get the nonce from the server
                         "url": self.directory["newAccount"]}))
+
+        print("This is protected: ", protected)
         #Send the data to the server, I still need to encrypt the data using the private key
         #And the JWS signature
         self.sign = DSS.new(self.account_key, 'fips-186-3') #Sign the data using the private key
