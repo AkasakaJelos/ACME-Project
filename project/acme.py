@@ -29,9 +29,7 @@ from Crypto.PublicKey import ECC
 from Crypto.Hash import SHA256
 from Crypto.Signature import DSS
 
-import ssl
 import requests
-import socket
 #Private libs
 from DNS import DNS_Server
 from HTTP import HTTPChallengeServer, ShutdownHTTPServer
@@ -392,7 +390,7 @@ class ACME_Client:
                                                                                         "url": url})),
                                                              base64enc(json.dumps({"keyAuthorization": key_authorization})),
                                                              self.account_key)[0]})
-            response = self.client.post(url=url, json=body, headers=self.JOSE_Header)
+            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')
             print("response for json: ", response.json())
             if response.status_code == 200:
                 print("Collect Challenge")
@@ -411,7 +409,19 @@ class ACME_Client:
 
         for url in validation_urls:
             #TODO: Need to respond to the challenges
-            response = self.client.get(url)
+            protected = base64enc(json.dumps({"alg": "ES256",
+                                                "kid": self.kid,
+                                                "nonce": self.get_nonce(),  # Get the nonce from the server
+                                                "url": url}))
+            payload = base64enc(json.dumps({"keyAuthorization": key_authorization}))
+            #Sign the body
+            sig, ecdsa = self.sign_body(protected, payload, self.account_key)
+            print("sig: ", sig)
+            print("ecdsa:", ecdsa)
+            # Get the full body
+            body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+            response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')  # Does this work? Should be JWS
+
             if response.status_code == 200:
                 print("Challenge success, next one")
             else:
@@ -752,11 +762,28 @@ def main():
 
 
 
-    #TODO: Identifier authorization
+    #Identifier authorization
+    key_authorization = acme.get_key_authorization()
+    state = acme.authorization_and_challenge_response(cert_order["authorizations"],key_authorization, server, dns_server)
+    if not state:
+        print("Authorization failed")
+        return
+    print("SUCCESS WITH AUTHORIZATION")
 
 
-    #TODO: Download Certificate
-    #TODO: Revoke Certificate
+    #Download Certificate
+    cert = acme.download_cert(cert_url, acme.account_key, "key.pem", "cert.pem")
+    if not cert:
+        print("Certificate download failed")
+        return
+    print("SUCCESS WITH CERTIFICATE DOWNLOAD")
+
+
+
+    #Revoke Certificate
+    _ = acme.revokeCert(cert)
+    print("SUCCESS WITH CERTIFICATE REVOCATION")
+
 
 
     #---------------------Start the certificate server---------------------
