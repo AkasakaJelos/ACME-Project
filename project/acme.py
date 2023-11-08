@@ -383,12 +383,12 @@ class ACME_Client:
                                                                     "kid": self.kid,
                                                                     "nonce": self.get_nonce(),  # Get the nonce from the server
                                                                     "url": url})),
-                                 "payload": base64enc(json.dumps({"keyAuthorization": key_authorization})),
+                                 "payload": base64enc(json.dumps({})),
                                  "signature": self.sign_body(base64enc(json.dumps({"alg": "ES256",
                                                                                         "jwk": key_autho,
                                                                                         "nonce": self.get_nonce(),  # Get the nonce from the server
                                                                                         "url": url})),
-                                                             base64enc(json.dumps({"keyAuthorization": key_authorization})),
+                                                             base64enc(json.dumps({})),
                                                              self.account_key)[0]})
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = 'pebble.minica.pem')
             print("response for json: ", response.json())
@@ -781,7 +781,10 @@ def main():
 
 
     #Revoke Certificate
-    _ = acme.revokeCert(cert)
+    revoke_state = acme.revokeCert(cert)
+    if not revoke_state:
+        print("Certificate revocation failed")
+        return
     print("SUCCESS WITH CERTIFICATE REVOCATION")
 
 
