@@ -541,7 +541,7 @@ class ACME_Client:
         url_ = self.client.get(url, headers=self.Header)
         if url_.status_code == 200:
             self.directory = url_.json()
-            return url_.json()
+            return url_
         elif url_.status_code == 204:
             print(url_) #{}
             self.directory = url_
