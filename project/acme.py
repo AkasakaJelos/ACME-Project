@@ -112,7 +112,7 @@ class ACME_Client:
         self.account_key = None
 
 
-    def create_account(self):
+    def create_account(self, directory):
         """
         Account resource(1):
 
@@ -161,7 +161,7 @@ class ACME_Client:
         protected = base64enc(json.dumps({ "alg": "ES256",
                         "jwk": jwk,
                         "nonce": self.get_nonce(), #Get the nonce from the server
-                        "url": self.directory["newAccount"]}))
+                        "url": directory["newAccount"]}))
 
         print("This is protected: ", protected)
         #Send the data to the server, I still need to encrypt the data using the private key
@@ -609,16 +609,17 @@ def main():
     server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
+
     acme = ACME_Client(server)
     #Create account
 
-    acme.directory = acme.get_url_(args.dir)
-    if not acme.directory:
+    directory = acme.get_url_(args.dir)
+    if not directory:
         print("Error getting directory")
         return
-    print(acme.directory)
-    account = acme.create_account()
-    print(account)
+    print("this is the directory", directory)
+    account = acme.create_account(directory)
+    print("Account is this: ", account)
     if not account:
         print("Account creation failed")
         return
@@ -637,6 +638,7 @@ def main():
 
 
     #TODO: Identifier authorization
+
 
     #TODO: Download Certificate
     #TODO: Revoke Certificate
