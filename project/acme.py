@@ -211,7 +211,11 @@ class ACME_Client:
        }
         :return:
         """
+        if not self.kid:
+             raise Exception("No kid, thus no account created. Please create an account first"  )
         # Create the JWS header, is this protected? I think it's protected
+        if not self.directory:
+            raise Exception("Directory empty, please get the directory first")
         protected = base64enc(json.dumps({"alg": "ES256",
                                           "kid ": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
@@ -284,7 +288,7 @@ class ACME_Client:
         print("This is bodyy: ", body)
 
         #Send the request
-        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header)
+        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header, verify='pebble.minica.pem')
 
         if response.status_code == 200:
             #Write the certificate into the file
@@ -445,7 +449,7 @@ class ACME_Client:
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy of revoking certt: ", body)
         #Send the request
-        response = requests.post(url=cert_url, json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
+        response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
 
         if response.status_code == 200:
             print("Certificate revoked")
