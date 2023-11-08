@@ -215,7 +215,7 @@ class ACME_Client:
         protected = base64enc(json.dumps({"alg": "ES256",
                                           "kid ": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
-                                          "url": self.directory["newAccount"]}))
+                                          "url": self.directory["newOrder"]}))
         #Create payload
         identifiers = []
         for domain in domains: #We have multiple domains for this task
@@ -233,7 +233,7 @@ class ACME_Client:
 
         #Send the request
 
-        response = requests.post(url=self.directory["newOrder"], json=body, headers=self.JOSE_Header)  # Does this work? Should be JWS
+        response = requests.post(url=self.directory["newOrder"], data=body, headers=self.JOSE_Header, verify='pebble.minica.pem' )  # Does this work? Should be JWS
 
         if response.status_code == 201:
             print("Order created")
@@ -513,9 +513,9 @@ class ACME_Client:
         :return:
         """
         response = self.get_url_(self.directory["newNonce"])
-        print(response.headers)
+        #print(response.json())
         nonce = response.headers["Replay-Nonce"]
-        print(nonce)
+        #print(nonce)
         return nonce
 
 
