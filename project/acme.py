@@ -500,8 +500,8 @@ class ACME_Client:
         key = {
             "crv": "P-256",
             "kty": "EC",
-            "x": base64enc(self.account_key.pointQ.x.to_bytes(32, 'big')),
-            "y": base64enc(self.account_key.pointQ.y.to_bytes(32, 'big')),
+            "x": base64enc(self.account_key.pointQ.x.to_bytes()),
+            "y": base64enc(self.account_key.pointQ.y.to_bytes()),
         }
         key_ = json.dumps(key)
         hash_key = H(data = key_, encoding='ascii').digest()
@@ -528,8 +528,8 @@ class ACME_Client:
         jwk = {
             "crv": "P-256",
             "kty": "EC",
-            "x": base64enc(key.pointQ.x.to_bytes(32, 'big')),
-            "y": base64enc(key.pointQ.y.to_bytes(32, 'big')),
+            "x": base64enc(key.pointQ.x.to_bytes()),
+            "y": base64enc(key.pointQ.y.to_bytes()),
         }
         return jwk
 
