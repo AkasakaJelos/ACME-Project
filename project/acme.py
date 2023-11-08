@@ -238,7 +238,7 @@ class ACME_Client:
         #Send the request
 
         response = requests.post(url=self.directory["newOrder"], data=body, headers=self.JOSE_Header, verify='pebble.minica.pem' )  # Does this work? Should be JWS
-
+        print("Response from order", response.json())
         if response.status_code == 201:
             print("Order created")
             print(response.headers["Location"])
