@@ -176,7 +176,7 @@ class ACME_Client:
         #Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
-        response = requests.get(directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
+        response = requests.post(directory["newAccount"], json= body, headers=self.JOSE_Header, verify='pebble.minica.pem') #Does this work? Should be JWS
         print(response.json())
         if response.status_code == 201:
             print("Account created")
@@ -536,13 +536,10 @@ class ACME_Client:
     def get_url_(self, url):
         url_ = self.client.get(url, headers=self.Header)
         if url_.status_code == 200:
-            try:
-                self.directory = url_.json()
-                return url_.json()
-            except json.decoder.JSONDecodeError:
-                raise Exception("Received non-JSON response")
+            self.directory = url_.json()
+            return url_.json()
         elif url_.status_code == 204:
-            print(url_)
+            print(url_) #{}
             self.directory = url_
             return url_  #Empty response
         else:
@@ -699,7 +696,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    server.verify = False
+    #server.verify = False
     server.verify = 'pebble.minica.pem'
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
