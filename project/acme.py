@@ -13,7 +13,6 @@ Easy copy:
 2. JWS: https://datatracker.ietf.org/doc/html/rfc7515
 3. ACME: https://datatracker.ietf.org/doc/html/rfc8555
 
-
 """
 
 from cryptography.hazmat.primitives import serialization
@@ -57,6 +56,7 @@ def H(data, encoding):
     # hash function using SHA256 encoding, used for the DNS challenge and more
     if isinstance(data, str):
         data = data.encode(encoding)
+        print(data)
     Hash = SHA256.new(data) #Added string encode as it could be bytes. Used for the DNS challenge
     print(Hash)
     return Hash
@@ -172,6 +172,7 @@ class ACME_Client:
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy: ", body)
         response = requests.post(self.directory["newAccount"], json= body, headers=self.JOSE_Header) #Does this work? Should be JWS
+        print(response.json())
         if response.status_code == 201:
             print("Account created")
             print("That's kid: ", response.headers["Location"])
@@ -344,8 +345,6 @@ class ACME_Client:
 
 
 
-
-
     def authorization(self):
 
         #TODO: Get the authorization
@@ -386,6 +385,36 @@ class ACME_Client:
 
 
     def keyChange(self):
+        """
+           POST /acme/key-change HTTP/1.1
+           Host: example.com
+           Content-Type: application/jose+json
+
+           {
+             "protected": base64url({
+               "alg": "ES256",
+               "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+               "nonce": "S9XaOcxP5McpnTcWPIhYuB",
+               "url": "https://example.com/acme/key-change"
+             }),
+             "payload": base64url({
+               "protected": base64url({
+                 "alg": "ES256",
+                 "jwk": /* new key */,
+                 "url": "https://example.com/acme/key-change"
+               }),
+               "payload": base64url({
+                 "account": "https://example.com/acme/acct/evOfKhNU60wg",
+                 "oldKey": /* old key */
+               }),
+               "signature": "Xe8B94RD30Azj2ea...8BmZIRtcSKPSd8gU"
+             }),
+             "signature": "5TWiqIYQfIDfALQv...x9C2mg8JGPxl5bI4"
+           }
+
+
+        :return:
+        """
         pass
 
 
@@ -422,11 +451,13 @@ class ACME_Client:
         url_ = self.client.get(url, headers=self.Header)
         if url_.status_code == 200:
             try:
+                self.directory = url_.json()
                 return url_.json()
             except json.decoder.JSONDecodeError:
                 raise Exception("Received non-JSON response")
         elif url_.status_code == 204:
             print(url_)
+            self.directory = url_
             return url_  #Empty response
         else:
             raise Exception(f"Error getting URL, status code: {url_.status_code}")
