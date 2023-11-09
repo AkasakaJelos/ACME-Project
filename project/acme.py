@@ -945,14 +945,15 @@ def main():
     print("SUCCESS WITH CERTIFICATE DOWNLOAD")
 
     #Revoke Certificate
-    #print(" THat'0s  the cert: ", cert)
-    cert = x509.load_pem_x509_certificate(cert)
-    print("This is the cert: ", cert)
-    revoke_state = acme.revokeCert(cert.public_bytes(serialization.Encoding.DER))
-    if not revoke_state:
-        print("Certificate revocation failed")
-        return
-    print("SUCCESS WITH CERTIFICATE REVOCATION")
+    if args.revoke:
+        #print(" THat'0s  the cert: ", cert)
+        cert = x509.load_pem_x509_certificate(cert)
+        print("This is the cert: ", cert)
+        revoke_state = acme.revokeCert(cert.public_bytes(serialization.Encoding.DER))
+        if not revoke_state:
+            print("Certificate revocation failed")
+            return
+        print("SUCCESS WITH CERTIFICATE REVOCATION")
 
 
     #---------------------Start the certificate server---------------------
