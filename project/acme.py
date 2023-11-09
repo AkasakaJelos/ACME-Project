@@ -862,7 +862,8 @@ def main():
     server = requests.Session()
     #server.verify = False
     #server.verify = 'pebble.minica.pem'
-    root_ca = False
+    root_ca = 'pebble.minica.pem'
+    #root_ca = False
     server.verify= root_ca
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
@@ -904,7 +905,7 @@ def main():
         print("Authorization failed")
         return
     print("SUCCESS WITH AUTHORIZATION")
-    #TODO: Finalize order
+    #Finalize order
     #Generate CSR
     key, csr, der = GenerateCSRForServer(args.domain)
     #Finalize order
