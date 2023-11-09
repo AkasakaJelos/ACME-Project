@@ -480,7 +480,7 @@ class ACME_Client:
             self.poll_status(url_,"")
 
         # Create payload
-        encoded_der = base64enc_fin(der)
+        encoded_der = base64enc(der)
         #print("DER: ", der)
         payload = {"csr": encoded_der}
 
