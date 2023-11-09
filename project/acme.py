@@ -856,12 +856,7 @@ def main():
 
     #---------------------Start the DNS server---------------------
     #print("DNS server starting........")
-    dns_server = DNS_Server(args, DNS_SERVER_PORT, IPAddr)
-    for domain in args.domain:
-        #print("args.dir :", args.dir)
-        dns_server.resolve_update(domain, args.record, "A")
-    dns_server.start_server() #This doesn't work.
-    print("DNS server started")
+
 
     #---------------------Start the challenge server---------------------
     print("Challenge server starting........")
@@ -901,6 +896,14 @@ def main():
     if not directory:
         print("Error getting directory")
         return
+    dns_server = DNS_Server(args, DNS_SERVER_PORT, IPAddr)
+    for domain in args.domain:
+        #print("args.dir :", args.dir)
+        dns_server.resolve_update(domain, args.record, "A")
+    dns_server.start_server() #This doesn't work.
+    print("DNS server started")
+
+
     print("this is the directory", directory)
     account, _ = acme.create_account(directory)
     print("Account is this: ", account)
