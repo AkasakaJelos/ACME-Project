@@ -3,7 +3,7 @@
 DNS server: A DNS server which resolves the DNS Queries of the ACME Server.
 
 """
-
+import copy
 
 import dnslib
 from dnslib.server import DNSServer, DNSLogger
@@ -24,7 +24,11 @@ class DNS_Resolver:
     def resolve(self, request, handler): #The name resolve is important and has to be resolve!
         reply = request.reply()
         for z in self.zones:
-            reply.add_answer(*dnslib.RR.fromZone(z))
+            a = copy.copy(z)
+            a.rname = request.q.qname
+            reply.add_answer(a)
+
+        print("This is zones: ", self.zones)
         return reply
 
     #Debugging purposes
@@ -39,17 +43,21 @@ class DNS_Server:
         self.args = args
         self.port = port
         self.resolver = DNS_Resolver()
-        self.server = DNSServer(resolver=self.resolver, port=port, address=addr, logger=DNSLogger(prefix = False))
+        self.server = DNSServer(resolver=self.resolver, port=port, address=addr, logger=DNSLogger())
+        print("Init of the DNS server done", self.port, addr)
 
 
     def resolve_update(self, domain,zone,tp):
+        print("This is the zones of the server (in DNS code):", self.return_zones())
         if tp == "A":
-            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 500))
+            self.resolver.zones.append(dns.RR(domain, dns.QTYPE.A, rdata=dns.A(zone), ttl = 500))
         if tp == "TXT":
-            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 500))
+            self.resolver.zones.append(dns.RR(domain, dns.QTYPE.TXT, rdata=dns.TXT(zone), ttl = 500))
 
 
     def start_server(self):
+        print("Starting the DNS server in the DNS code")
+        print("Zones of the Dns: ", self.return_zones())
         self.server.start_thread()
     def shutdown_server(self):
         self.server.server.server_close()

@@ -14,12 +14,13 @@ class Certificate_HTTPS:
 
     def cert_server(self):
         @self.server.route("/")
-        def shutdown():
-            print ("HTTPS server is running")
+        def run():
+            print("HTTPS server is running")
 
 
-    def startHTTPServer(self, host, port, key, cert):
-        self.server.run(host = host, port = port, key = key, cert = cert)
+    def run_server(self, port, host, cert, key):
+        ssl_context = (cert, key)
+        self.server.run(port=port, host=host, ssl_context=ssl_context, threaded=True)
 
 
 

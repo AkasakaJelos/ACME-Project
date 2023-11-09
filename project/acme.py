@@ -48,7 +48,13 @@ from JWS import JWS
 
 
 
-
+def base64enc_fin(payload):
+    if isinstance(payload, str):
+        payload = payload.encode('utf8')
+    encoded = urlsafe_b64encode(payload)
+    #print("_This is encoded: ", encoded)
+    decoded = encoded.decode('utf8')
+    return decoded
 #One should use urlsafe base64 encoding from FAQ
 def base64enc(payload):
     if isinstance(payload, str):
@@ -255,7 +261,7 @@ class ACME_Client:
 
 
 
-    def download_cert(self, cert_url,key, key_path, cert_path): #7.4.2
+    def download_cert(self, cert_url, key, key_path, cert_path): #7.4.2
         """
 
            POST /acme/cert/mAt3xBGaobw HTTP/1.1
@@ -284,7 +290,7 @@ class ACME_Client:
                                             "nonce": self.get_nonce(),  # Get the nonce from the server
                                             "url": cert_url}))
 
-        payload =""  # It is nothing
+        payload = ""  # It is nothing
 
         #Sign the body
         sig, ecdsa = self.sign_body(protected, payload)
@@ -299,21 +305,32 @@ class ACME_Client:
         print("This is the response after applying cert: ", response.json())
         if response.status_code == 200:
             #Write the certificate into the file
-            cert = response.content #Get the certificate
-            print("That's cert brroooo:", cert)
-            #Write cert path into the file
-            with open(cert_path, "wb") as f:
-                f.write(cert)
-            #Write key path into the file
-            with open(key_path, "wb") as f:
-                f.write(self.account_key.private_bytes(
-                    encodings = serialization.Encoding.PEM,
-                    format = serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm = serialization.NoEncryption(),
-                ))
 
-            print("Certificate SUCCESSFULLY downloaded")
-            return cert
+
+            cert_cert_url = response.json()["certificate"] #Get the cert url
+
+            protected, payload, sig = self.get_body(cert_cert_url, "")
+            body = json.dumps({"protected": protected,
+                                 "payload": "",
+                                 "signature": sig})
+            response = self.client.post(url=cert_cert_url, data=body, headers=self.JOSE_Header, verify=self.cert)
+            print("THis is downloading: ", response)
+            if response.status_code == 200:
+                #Write cert path into the file
+                cert = response.content  # Get the certificate
+                print("That's cert brroooo:", cert)
+                with open(cert_path, "wb") as f:
+                    f.write(cert)
+                #Write key path into the file
+                with open(key_path, "wb") as f:
+                    f.write(key.private_bytes(
+                        encoding = serialization.Encoding.PEM,
+                        format = serialization.PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm = serialization.NoEncryption(),
+                    ))
+
+                print("Certificate SUCCESSFULLY downloaded")
+                return cert
 
         raise Exception("Certificate download failed")
 
@@ -395,10 +412,6 @@ class ACME_Client:
                 #print("Collect Challenge")
                 challenges = response.json()["challenges"]
                 for cha in challenges:
-
-                    token = cha["token"]
-                    type = cha["type"]
-                    url_ = cha["url"]
                     if cha["type"] == "http-01" and chal == "http01":
                         print("Adding http challenge: ", cha)
                         validation_urls.append(self.http_challenge(cha, key_authorization, http_server))
@@ -464,58 +477,25 @@ class ACME_Client:
         # finalize the shit
         print("order url_: ", order_url)
         for url_ in order_url:
-            state = self.poll_status(url_,"")
-            if not state:
-                raise ("pending error")
-
-
+            self.poll_status(url_,"")
 
         # Create payload
-        if isinstance(der, str):
-            der = der.encode('utf-8')
-        encoded_der = urlsafe_b64encode(der).decode('utf-8').rstrip('=')
+        encoded_der = base64enc_fin(der)
         #print("DER: ", der)
-        payload = {"csr": encoded_der} #bruh
+        payload = {"csr": encoded_der}
 
         # Sign the body
-        protected, payload, sig = self.get_body_fin(finalize_url, payload)
+        protected, payload, sig = self.get_body(finalize_url, payload)
 
-        body = {"protected": protected, "payload": payload, "signature": sig}
+        body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy of finalizing: ", body)
 
-        response = self.client.post(order_url, data=body, headers=self.JOSE_Header, verify = self.cert)
+        response = self.client.post(finalize_url, data=body, headers=self.JOSE_Header, verify = self.cert)
         print("This is the response from the poll: ", response.json())
         if response.status_code == 200:
             print("This is response: ", response.json())
-            for i in range(5):
-                new_nonce = self.get_nonce()
-                protected = base64enc(json.dumps({"alg": "ES256",
-                                                  "kid": self.kid,
-                                                  "nonce": new_nonce,  # Get the nonce from the server
-                                                  "url":finalize_url}))
-                payload = ""
-                # Sign the body
-                sig, _ = self.sign_body(protected, payload)
-
-                # Get the full body
-                body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-                response = self.client.post(url=order_url, data=body, headers=self.JOSE_Header,
-                                            verify=self.cert)  # Does this work? Should be JWS
-
-                print("This is the response from the poll: ", response.json())
-                if response.status_code == 200:
-                    status = response.json()["status"]
-                    if status == "valid":
-                        print("Valid")
-                        break
-                    elif status == "pending":
-                        print("Pending")
-                        time.sleep(10)
-                        continue
-                    else:
-                        raise Exception("Invalid")
-                else:
-                    raise Exception("Error getting URL, status code: {response.status_code}")
+            for url_ in order_url:
+                self.poll_status(url_, "")
             return True
 
 
@@ -609,7 +589,7 @@ class ACME_Client:
 
     #--------------------------Helper functions--------------------------
     def poll_status(self, url_, payload):
-        for i in range(10):
+        while True:
             new_nonce = self.get_nonce()
             protected = base64enc(json.dumps({"alg": "ES256",
                                               "kid": self.kid,
@@ -719,8 +699,8 @@ class ACME_Client:
             "url": url
         }
 
-        enc_protected = base64enc(json.dumps(protected).encode("utf-8"))
-        enc_payload = base64enc(json.dumps(payload).encode("utf-8"))
+        enc_protected = base64enc(json.dumps(protected))
+        enc_payload = base64enc(json.dumps(payload))
 
 
         sign, _ = self.sign_body(enc_protected, enc_payload)
@@ -819,10 +799,7 @@ class ACME_Client:
 
 
 #Run the dns server
-def run_dns_server(server, args):
-    for domain in args.domain:
-        server.resolve_update(domain, args.dir, args.record)
-    server.start_server() #This doesn't work.
+
 
 
 #Stop the dns server
@@ -840,7 +817,11 @@ def GenerateCSRForServer(domains):
     # Generate a CSR
     csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
         # Provide various details about who we are.
-        x509.NameAttribute(NameOID.COMMON_NAME, u"ACMEv2") #Common name
+        x509.NameAttribute(NameOID.COMMON_NAME, u"ACMEv2"), #Common name
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"Netsec"),
+        x509.NameAttribute(NameOID.COUNTRY_NAME, u"US"),
+        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"CA"),
+        x509.NameAttribute(NameOID.LOCALITY_NAME, u"San Francisco"),
     ])).add_extension(
         x509.SubjectAlternativeName([x509.DNSName(domain) for domain in domains]),
         critical=False,
@@ -883,8 +864,11 @@ def main():
 
     #---------------------Start the DNS server---------------------
     #print("DNS server starting........")
-    dns_server = DNS_Server(args.record, DNS_SERVER_PORT, IPAddr)
-    run_dns_server(dns_server, args)
+    dns_server = DNS_Server(args, DNS_SERVER_PORT, IPAddr)
+    for domain in args.domain:
+        print("args.dir :", args.dir)
+        dns_server.resolve_update(domain, args.record, "A")
+    dns_server.start_server() #This doesn't work.
     print("DNS server started")
 
     #---------------------Start the challenge server---------------------
@@ -898,11 +882,12 @@ def main():
 
     print("Certificate server starting........")
     certificate_server = Certificate_HTTPS()
+    shutdown_server = ShutdownHTTPServer()
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
     #server.verify = False
-    #server.verify = 'pebble.minica.pem'
+    server.verify = 'pebble.minica.pem'
     root_ca = 'pebble.minica.pem'
     #root_ca = False
     server.verify= root_ca
@@ -963,7 +948,7 @@ def main():
     #Download Certificate
     cert_name = "cert.pem"
     key_name = "key.pem"
-    cert = acme.download_cert(cert_url, acme.account_key, key_name, cert_name)
+    cert = acme.download_cert(cert_url,key,  key_name, cert_name)
     if not cert:
         print("Certificate download failed")
         return
@@ -974,17 +959,13 @@ def main():
 
     #---------------------Start the certificate server---------------------
     #Start the certificate server
-    certificate_server.startHTTPServer(IPAddr,CERTIFICATE_PORT, key_name, cert_name)
+    certificate_server.run_server(host= IPAddr,port = CERTIFICATE_PORT, key = key_name, cert = cert_name)
 
 
 
 
     print("Certificate server shutting down........")
-    time.sleep(10)
 
-    Shudown_https = ShutdownHTTPSServer()
-    Shudown_https.run_server(port=CERTIFICATE_PORT, host=IPAddr, cert='cert.pem', key='key.pem')
-    print("Certificate server shut down")
 
 
 
@@ -1012,7 +993,7 @@ def main():
 
     #-------------- shutdown the challenge server, why tf 21P?---------------------X
     print("Challenge server shutting down........")
-    shutdown_server = ShutdownHTTPServer()
+
     shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
     print("Challenge server shut down")
 
