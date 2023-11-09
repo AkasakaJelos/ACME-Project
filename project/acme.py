@@ -655,7 +655,7 @@ class ACME_Client:
         return jwk
 
     def get_url_(self, url):
-        url_ = self.client.get(url, headers=self.Header,verify = 'pebble.minica.pem')
+        url_ = self.client.get(url, headers=self.Header, verify='pebble.minica.pem')
         if url_.status_code == 200:
             #self.directory = url_.json()
             return url_.json()
