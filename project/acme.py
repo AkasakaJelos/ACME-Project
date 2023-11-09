@@ -835,7 +835,7 @@ def main():
     parse.add_argument('-u', '--dir', help='The directory you want to get certified', required=True)
     parse.add_argument('-c', '--record', help='Only challenge type', required=True)
     parse.add_argument('-d', '--domain', help='The domain you want to access.', action='append', required=True)
-    parse.add_argument('-r', '--revoke',help='certificate revokation, for dns and https', required=False)
+    parse.add_argument('-r', '--revoke',help='certificate revokation, for dns and https', action = argparse.BooleanOptionalAction, default=False)
     args = parse.parse_args()
 
     DNS_SERVER_PORT = 10053 #UDP port 10053
