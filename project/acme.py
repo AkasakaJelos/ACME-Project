@@ -903,8 +903,8 @@ def main():
     server = requests.Session()
     #server.verify = False
     #server.verify = 'pebble.minica.pem'
-    #root_ca = 'pebble.minica.pem'
-    root_ca = False
+    root_ca = 'pebble.minica.pem'
+    #root_ca = False
     server.verify= root_ca
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
