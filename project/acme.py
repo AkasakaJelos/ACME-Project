@@ -847,20 +847,7 @@ def main():
 
     IPAddr = "0.0.0.0" #Default IP address
 
-    #---------------------Start the acme server---------------------
-    server = requests.Session()
-    #server.verify = False
-    server.verify = 'pebble.minica.pem'
-    root_ca = 'pebble.minica.pem'
-    #root_ca = False
-    server.verify = root_ca
-    # server_response = server.get(args.dir, verify = 'pebble.minica.pem')
-    # print(server_response.json())
 
-    acme = ACME_Client(server, root_ca)
-    # Create account
-    directory = acme.get_url_(args.dir)
-    #Moved above
 
     if args.challenge=="dns01":
         IPAddr = args.record
@@ -896,7 +883,20 @@ def main():
 
 
     #---------------------Start the acme server---------------------
+    #---------------------Start the acme server---------------------
+    server = requests.Session()
+    #server.verify = False
+    server.verify = 'pebble.minica.pem'
+    root_ca = 'pebble.minica.pem'
+    #root_ca = False
+    server.verify = root_ca
+    # server_response = server.get(args.dir, verify = 'pebble.minica.pem')
+    # print(server_response.json())
 
+    acme = ACME_Client(server, root_ca)
+    # Create account
+    directory = acme.get_url_(args.dir)
+    #Moved above
 
     if not directory:
         print("Error getting directory")
