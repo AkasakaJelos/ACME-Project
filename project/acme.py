@@ -526,28 +526,18 @@ class ACME_Client:
         cert_url = self.directory["revokeCert"]
         #Create encoded url for cert
         encoded_cert = base64enc(cert)
+        payload = {"certificate": encoded_cert, "reason": 4}
         #Create the JWS header, is this protected? I think it's protected
-        protected = base64enc(json.dumps({"alg": "ES256",
-                                            "kid": self.kid,
-                                            "nonce": self.get_nonce(),  # Get the nonce from the server
-                                            "url": cert_url}))
-        #Create payload
-        payload = base64enc(json.dumps(
-            {"certificate": encoded_cert, "reason": 4}))
-
-        #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload)
-        print("sig: ", sig)
-        print("ecdsa:", ecdsa)
+        protected, payload, sig = self.get_body(cert_url, payload)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
         print("This is bodyy of revoking certt: ", body)
         #Send the request
         response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
-
+        print("This is the revokation response: ", response)
         if response.status_code == 200:
             print("Certificate revoked")
-            return response.json()
+            return True
 
 
 
@@ -866,7 +856,7 @@ def main():
     #print("DNS server starting........")
     dns_server = DNS_Server(args, DNS_SERVER_PORT, IPAddr)
     for domain in args.domain:
-        print("args.dir :", args.dir)
+        #print("args.dir :", args.dir)
         dns_server.resolve_update(domain, args.record, "A")
     dns_server.start_server() #This doesn't work.
     print("DNS server started")
@@ -886,7 +876,7 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    #server.verify = False
+    server.verify = False
     server.verify = 'pebble.minica.pem'
     root_ca = 'pebble.minica.pem'
     #root_ca = False
@@ -954,7 +944,15 @@ def main():
         return
     print("SUCCESS WITH CERTIFICATE DOWNLOAD")
 
-
+    #Revoke Certificate
+    #print(" THat'0s  the cert: ", cert)
+    cert = x509.load_pem_x509_certificate(cert)
+    print("This is the cert: ", cert)
+    revoke_state = acme.revokeCert(cert.public_bytes(serialization.Encoding.DER))
+    if not revoke_state:
+        print("Certificate revocation failed")
+        return
+    print("SUCCESS WITH CERTIFICATE REVOCATION")
 
 
     #---------------------Start the certificate server---------------------
@@ -970,13 +968,7 @@ def main():
 
 
 
-    #Revoke Certificate
 
-    revoke_state = acme.revokeCert(cert)
-    if not revoke_state:
-        print("Certificate revocation failed")
-        return
-    print("SUCCESS WITH CERTIFICATE REVOCATION")
 
 
 
