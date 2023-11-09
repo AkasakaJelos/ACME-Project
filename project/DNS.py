@@ -36,14 +36,15 @@ class DNS_Server:
     def __init__(self, args, port):
         self.args = args
         self.port = port
+        self.resolver = DNS_Resolver()
         self.server = DNSServer(resolver=DNS_Resolver(), port=port, address="0.0.0.0", logger=DNSLogger(prefix = False))
 
 
     def resolve_update(self, domain,zone,tp):
         if tp == "A":
-            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 400))
+            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 400))
         elif tp == "TXT":
-            self.server.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 400))
+            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 400))
 
 
     def start_server(self):
