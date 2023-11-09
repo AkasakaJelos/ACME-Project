@@ -655,7 +655,7 @@ class ACME_Client:
         return jwk
 
     def get_url_(self, url):
-        url_ = self.client.get(url, headers=self.Header)
+        url_ = self.client.get(url, headers=self.Header,verify = 'pebble.minica.pem')
         if url_.status_code == 200:
             #self.directory = url_.json()
             return url_.json()
@@ -969,7 +969,7 @@ def main():
     #---------------------Start the certificate server---------------------
     #Start the certificate server
     certificate_server.run_server(host= IPAddr,port = CERTIFICATE_PORT, key = key_name, cert = cert_name)
-
+    shutdown_thread.start()
 
 
 
