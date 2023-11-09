@@ -849,10 +849,10 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    server.verify = False
-    # server.verify = 'pebble.minica.pem'
-    # root_ca = 'pebble.minica.pem'
-    root_ca = False
+    #server.verify = False
+    server.verify = 'pebble.minica.pem'
+    root_ca = 'pebble.minica.pem'
+    #root_ca = False
     server.verify = root_ca
     # server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     # print(server_response.json())
@@ -971,7 +971,6 @@ def main():
     certificate_server.run_server(host= IPAddr,port = CERTIFICATE_PORT, key = key_name, cert = cert_name)
 
 
-    shutdown_thread.start()
 
 
 
