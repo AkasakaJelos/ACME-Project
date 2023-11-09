@@ -2,7 +2,7 @@
 Acme client implementation
 
 ./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
-./run http01 --dir https://0.0.0.0:14000/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run http01 --dir https://0.0.0.0:14000/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch --revoke
 
 
 ./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch
@@ -844,8 +844,23 @@ def main():
     CERTIFICATE_PORT = 5001 #TCP port 5001
 
 
+
     IPAddr = "0.0.0.0" #Default IP address
 
+    #---------------------Start the acme server---------------------
+    server = requests.Session()
+    server.verify = False
+    # server.verify = 'pebble.minica.pem'
+    # root_ca = 'pebble.minica.pem'
+    root_ca = False
+    server.verify = root_ca
+    # server_response = server.get(args.dir, verify = 'pebble.minica.pem')
+    # print(server_response.json())
+
+    acme = ACME_Client(server, root_ca)
+    # Create account
+    directory = acme.get_url_(args.dir)
+    #Moved above
 
     if args.challenge=="dns01":
         IPAddr = args.record
@@ -873,21 +888,16 @@ def main():
     print("Certificate server starting........")
     certificate_server = Certificate_HTTPS()
     shutdown_server = ShutdownHTTPServer()
+    shutdown_thread = Thread(target=certificate_server.run_server, args = (CERTIFICATE_PORT, IPAddr))
+    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
+
+
+
+
 
     #---------------------Start the acme server---------------------
-    server = requests.Session()
-    server.verify = False
-    server.verify = 'pebble.minica.pem'
-    root_ca = 'pebble.minica.pem'
-    #root_ca = False
-    server.verify= root_ca
-    #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
-    #print(server_response.json())
 
-    acme = ACME_Client(server, root_ca)
-    #Create account
 
-    directory = acme.get_url_(args.dir)
     if not directory:
         print("Error getting directory")
         return
@@ -961,6 +971,8 @@ def main():
     certificate_server.run_server(host= IPAddr,port = CERTIFICATE_PORT, key = key_name, cert = cert_name)
 
 
+    shutdown_thread.start()
+
 
 
     print("Certificate server shutting down........")
@@ -987,7 +999,6 @@ def main():
     #-------------- shutdown the challenge server, why tf 21P?---------------------X
     print("Challenge server shutting down........")
 
-    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
     print("Challenge server shut down")
 
 
