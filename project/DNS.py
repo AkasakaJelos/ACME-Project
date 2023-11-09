@@ -7,6 +7,8 @@ DNS server: A DNS server which resolves the DNS Queries of the ACME Server.
 
 import dnslib
 from dnslib.server import DNSServer, DNSLogger
+from dnslib import dns
+from dnslib import server
 
 
 
@@ -26,8 +28,8 @@ class DNS_Resolver:
         return reply
 
     #Debugging purposes
-    def return_zones(self):
-        return self.zones
+   # def return_zones(self):#
+   #    return self.zones
 class DNS_Server:
     """
     Setup my own dns server
@@ -42,9 +44,9 @@ class DNS_Server:
 
     def resolve_update(self, domain,zone,tp):
         if tp == "A":
-            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 400))
-        elif tp == "TXT":
-            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 400))
+            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.A, rdata=dnslib.A(zone), ttl = 500))
+        if tp == "TXT":
+            self.resolver.zones.append(dnslib.RR(domain, dnslib.QTYPE.TXT, rdata=dnslib.TXT(zone), ttl = 500))
 
 
     def start_server(self):
@@ -55,13 +57,13 @@ class DNS_Server:
 
     #Debugger
     def is_running(self):
-        return self.server.is_running
+        return self.server.isAlive()
 
     def return_args(self):
         return self.args
 
     def return_zones(self):
-        return self.server.resolver.zones
+        return self.resolver.zones
 
 
 

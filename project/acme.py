@@ -5,7 +5,7 @@ Acme client implementation
 ./run http01 --dir https://0.0.0.0:14000/dir --record 127.0.0.1 --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 
-./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
+./run dns01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch
 ./run http01 --dir https://0.0.0.0:14000/dir --record localhost --domain netsec.ethz.ch --domain syssec.ethz.ch
 
 Easy copy:
@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
+import warnings
 
 
 from cryptography.hazmat.primitives import serialization
@@ -179,7 +180,7 @@ class ACME_Client:
         #And the JWS signature
         self.sign = DSS.new(self.account_key, 'fips-186-3') #Sign the data using the private key
         payload = base64enc(json.dumps({"termsOfServiceAgreed": True})) #Add the payload, ignore the contact to
-        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
+        sig, ecdsa = self.sign_body(protected, payload)
         #print("sig: ", sig)
         #print("ecdsa:", ecdsa)
         #Get the full body
@@ -225,24 +226,20 @@ class ACME_Client:
         # Create the JWS header, is this protected? I think it's protected
         if not self.directory:
             raise Exception("Directory empty, please get the directory first")
-        protected = base64enc(json.dumps({"alg": "ES256",
-                                          "kid": self.kid,
-                                          "nonce": self.get_nonce(),  # Get the nonce from the server
-                                          "url": self.directory["newOrder"]}))
+
         #Create payload
         identifiers = []
         for domain in domains: #We have multiple domains for this task
             identifiers.append({"type": "dns", "value": domain})
 
-        payload = base64enc(json.dumps(
-            {"identifiers": identifiers}))  # We want to have the url for the assign cert
+        _payload = {"identifiers": identifiers}  # We want to have the url for the assign cert
+        protected,payload,sig = self.get_body(self.directory["newOrder"], _payload )
 
-        #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
         #print("sig: ", sig)
         #print("ecdsa:", ecdsa)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+
         #print("Thsi is the body from newOrder: ", body)
 
         #Send the request
@@ -290,7 +287,7 @@ class ACME_Client:
         payload =""  # It is nothing
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload, key = key)
+        sig, ecdsa = self.sign_body(protected, payload)
         #print("sig: ", sig)
         #print("ecdsa:", ecdsa)
         # Get the full body
@@ -348,7 +345,7 @@ class ACME_Client:
 
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload, key = self.account_key)
+        sig, ecdsa = self.sign_body(protected, payload)
         #print("sig: ", sig)
         #print("ecdsa:", ecdsa)
         # Get the full body
@@ -364,7 +361,7 @@ class ACME_Client:
 
 
 
-    def authorization_and_challenge_response(self, urls, key_authorization, order_url,  http_server, dns_server): #7.5
+    def authorization_and_challenge_response(self, urls, key_authorization, chal,  http_server, dns_server): #7.5
         """
        POST /acme/authz/PAniVnsZcis HTTP/1.1
        Host: example.com
@@ -387,28 +384,27 @@ class ACME_Client:
 
         validation_urls = []
         for url in urls:
-            protected = base64enc(json.dumps({"alg": "ES256",
-                                                "kid": self.kid,
-                                                "nonce": self.get_nonce(),  # Get the nonce from the server
-                                                "url": url}))
-            payload = ""
-            sig, ecdsa = self.sign_body(protected, payload, key = self.account_key)
-            #print("Getting the following urls: ", url)
+            protected,payload, sig = self.get_body(url, "")
             body =json.dumps({"protected":protected,
                                  "payload": "",
-                                 "signature":sig})
-            #print("This is body from url:::", body)
+                                 "signature": sig})
+            print("This is body from url:::", body)
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)
-            #print("response for json_ challenge collecting phase: ", response.json())
+            print("response for json_ challenge collecting phase: ", response.json())
             if response.status_code == 200:
                 #print("Collect Challenge")
                 challenges = response.json()["challenges"]
-                ident = response.json()["identifier"]["value"]
                 for cha in challenges:
-                    if cha["type"] == "http-01":
+
+                    token = cha["token"]
+                    type = cha["type"]
+                    url_ = cha["url"]
+                    if cha["type"] == "http-01" and chal == "http01":
+                        print("Adding http challenge: ", cha)
                         validation_urls.append(self.http_challenge(cha, key_authorization, http_server))
-                    elif cha["type"] == "dns-01":
-                        validation_urls.append(self.dns_challenge(ident, cha, key_authorization, dns_server))
+                    elif cha["type"] == "dns-01" and chal == "dns01":
+                        print("Adding dns challenge: ", cha)
+                        validation_urls.append(self.dns_challenge(response, cha, key_authorization, dns_server))
 
             else:
                 raise Exception("Authorization failed")
@@ -417,22 +413,23 @@ class ACME_Client:
         print("FINISHED COLLECTING CHALLENGES")
         #print("VALIDATION URLS: ", validation_urls)
         url_collection= [] #Used to poll the status
-        for (url,_) in validation_urls:
+        for url in validation_urls:
             #Need to respond to the challenges
+            print("Processing on: ", url)
             url_collection.append(url)
             protected = base64enc(json.dumps({"alg": "ES256",
                                                 "kid": self.kid,
                                                 "nonce": self.get_nonce(),  # Get the nonce from the server
                                                 "url": url}))
-            payload = ""
+            payload = base64enc("{}")
             #Sign the body
-            sig, _ = self.sign_body(protected, payload, self.account_key)
+            sig, _ = self.sign_body(protected, payload)
             #print("sig: ", sig)
             #print("ecdsa:", ecdsa)
             # Get the full body
             body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
-
+            print(response.json())
             if response.status_code == 200:
                 print("Challenge success, next one")
             else:
@@ -465,52 +462,32 @@ class ACME_Client:
             }
              """
         # finalize the shit
-        while True:
-            new_nonce = self.get_nonce()
-            protected = base64enc(json.dumps({"alg": "ES256",
-                                                "kid": self.kid,
-                                                "nonce": new_nonce,  # Get the nonce from the server
-                                                "url": order_url}))
-            payload = ""
-            # Sign the body
-            sig, _ = self.sign_body(protected, payload, self.account_key)
+        print("order url_: ", order_url)
+        for url_ in order_url:
+            state = self.poll_status(url_,"")
+            if not state:
+                raise ("pending error")
 
-            # Get the full body
-            body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-            response = self.client.post(url=order_url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
 
-            print("This is the response from the poll: ", response.json())
-            if response.status_code == 200:
-                status = response.json()["status"]
-                if status == "valid":
-                    print("Valid")
-                    break
-                elif status == "pending":
-                    print("Pending")
-                    time.sleep(1)
-                    continue
-                else:
-                    raise Exception("Invalid")
-            else:
-                raise Exception("Error getting URL, status code: {response.status_code}")
 
-        protected = base64enc(json.dumps({"alg": "ES256",
-                                          "kid": self.kid,
-                                          "nonce": self.get_nonce(),  # Get the nonce from the server
-                                          "url": finalize_url}))
         # Create payload
-        payload = base64enc(json.dumps({"csr": der}))
+        if isinstance(der, str):
+            der = der.encode('utf-8')
+        encoded_der = urlsafe_b64encode(der).decode('utf-8').rstrip('=')
+        #print("DER: ", der)
+        payload = {"csr": encoded_der} #bruh
 
         # Sign the body
-        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
+        protected, payload, sig = self.get_body_fin(finalize_url, payload)
 
-        body = {"protected": protected, "payload": payload, "sig": sig}
+        body = {"protected": protected, "payload": payload, "signature": sig}
+        print("This is bodyy of finalizing: ", body)
 
         response = self.client.post(order_url, data=body, headers=self.JOSE_Header, verify = self.cert)
-
+        print("This is the response from the poll: ", response.json())
         if response.status_code == 200:
             print("This is response: ", response.json())
-            while True:
+            for i in range(5):
                 new_nonce = self.get_nonce()
                 protected = base64enc(json.dumps({"alg": "ES256",
                                                   "kid": self.kid,
@@ -518,7 +495,7 @@ class ACME_Client:
                                                   "url":finalize_url}))
                 payload = ""
                 # Sign the body
-                sig, _ = self.sign_body(protected, payload, self.account_key)
+                sig, _ = self.sign_body(protected, payload)
 
                 # Get the full body
                 body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
@@ -579,7 +556,7 @@ class ACME_Client:
             {"certificate": encoded_cert, "reason": 4}))
 
         #Sign the body
-        sig, ecdsa = self.sign_body(protected, payload, self.account_key)
+        sig, ecdsa = self.sign_body(protected, payload)
         print("sig: ", sig)
         print("ecdsa:", ecdsa)
         # Get the full body
@@ -631,7 +608,38 @@ class ACME_Client:
 
 
     #--------------------------Helper functions--------------------------
-    def get_key_authorization(self):
+    def poll_status(self, url_, payload):
+        for i in range(10):
+            new_nonce = self.get_nonce()
+            protected = base64enc(json.dumps({"alg": "ES256",
+                                              "kid": self.kid,
+                                              "nonce": new_nonce,  # Get the nonce from the server
+                                              "url": url_}))
+            # Sign the body
+            sig, _ = self.sign_body(protected, payload)
+
+            # Get the full body
+            body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
+            response = self.client.post(url=url_, data=body, headers=self.JOSE_Header,
+                                        verify=self.cert)  # Does this work? Should be JWS
+
+            print("This is the response from the poll: ", response.json())
+            if response.status_code == 200:
+                status = response.json()["status"]
+                if status in ["ready", "processing", "valid"]:
+                    print("Valid")
+                    break
+                elif status == "pending":
+                    print("Pending")
+                    time.sleep(3)
+                    continue
+                else:
+                    raise Exception("Invalid")
+            else:
+                raise Exception("Error getting URL, status code: {response.status_code}")
+
+
+    def get_thumbnail(self):
         """
         Get the key authorization, used for the challenge
         Similar to jwk, the main difference is we need to hash them.
@@ -644,10 +652,12 @@ class ACME_Client:
             "x": base64enc(self.account_key.pointQ.x.to_bytes()),
             "y": base64enc(self.account_key.pointQ.y.to_bytes()),
         }
-        key_ = json.dumps(key)
-        hash_key = H(data = key_, encoding='ascii').digest()
-        encoded_key = base64enc(hash_key)
+        key_ = json.dumps(key, separators=(',', ':'))
+        hash_key = H(data = key_, encoding='utf-8').digest()
+        encoded_key = base64enc(hash_key).rstrip("=")
         return encoded_key
+
+
     def get_nonce(self):
         """
         Get the nonce from the server
@@ -688,22 +698,50 @@ class ACME_Client:
 
 
 
-    def sign_body(self, header, payload, key):
+    def sign_body(self, header, payload):
         """
         Sign the body of the request
         :param body:
         :return:
         """
-        if key is None:
-            raise Exception("No account key, you may need to create a new account for that...will never happen I think")
-        ecdsa = DSS.new(key, 'fips-186-3') #Sign the data using the private key
         if payload:
             message = f"{header}.{payload}"
         else:
-            message = f"{header}."  #If there is no payload
+            message = "{}.{}".format(header, "")  #If there is no payload
         hashed_message = H(message, encoding='ascii')
-        sign_message = ecdsa.sign(hashed_message)
-        return base64enc(sign_message), ecdsa #Sign.sign, hate it, bugs are here
+        sign_message = self.sign.sign(hashed_message)
+        return base64enc(sign_message), self.sign#Sign.sign, hate it, bugs are here
+    def get_body_fin(self, url, payload):
+        protected = {
+            "alg": "ES256",
+            "kid": self.kid,
+            "nonce": self.get_nonce(),
+            "url": url
+        }
+
+        enc_protected = base64enc(json.dumps(protected).encode("utf-8"))
+        enc_payload = base64enc(json.dumps(payload).encode("utf-8"))
+
+
+        sign, _ = self.sign_body(enc_protected, enc_payload)
+        return enc_protected, enc_payload, sign
+    def get_body(self, url, payload):
+        protected = {
+            "alg": "ES256",
+            "kid": self.kid,
+            "nonce": self.get_nonce(),
+            "url": url
+        }
+
+        enc_protected = base64enc(json.dumps(protected))
+        if payload:
+            enc_payload = base64enc(json.dumps(payload))
+        else:
+            enc_payload = ""
+
+        sign, _ = self.sign_body(enc_protected, enc_payload)
+        return enc_protected, enc_payload, sign
+
 
     def http_challenge(self, challenge, key_authorization,http_server):#8.3
         """
@@ -726,13 +764,20 @@ class ACME_Client:
         :return:
         """
         #Implement the https challenge
-        key_auth = f"{challenge['token']}.{key_authorization}"
-        http_server.add_auth(challenge["token"], key_auth)
-        return challenge["url"], key_auth
+        #print("This is the whole challenge to be added: ", challenge)
+        token = challenge["token"]
+        #print("That's the token to be added: ", token)
+        key_auth = f"{token}.{key_authorization}"
+        #print("Should the key_authorization correct (http-01): ", key_auth)
+
+        http_server.add_auth(challenge['token'], key_auth)
+        response = http_server.get_challenge_response(token)
+        #print("That's the string from the http server: ", response)
+        return challenge["url"]
 
 
 
-    def dns_challenge(self, ident, challenge, key_authorization, dns_server): #8.4
+    def dns_challenge(self, response, challenge, key_authorization, dns_server): #8.4
         """  type (required, string):  The string "dns-01".
 
            token (required, string):  A random value that uniquely identifies
@@ -752,9 +797,11 @@ class ACME_Client:
         key_auth = f"{challenge['token']}.{key_authorization}"
         message = H(data = key_auth, encoding='ascii').digest()
         key_auth = base64enc(message)
-        dns_server.resolve_update(f"_acme.{ident}", key_auth, "TXT")
+        get_val = response.json()["identifier"]["value"]
+        #print("get_val: ", get_val)
+        dns_server.resolve_update(f"_acme-challenge.{get_val}", key_auth, "TXT")
         print("key auth: ", key_auth)
-        return challenge["url"], key_auth
+        return challenge["url"]
 
 
 
@@ -793,11 +840,7 @@ def GenerateCSRForServer(domains):
     # Generate a CSR
     csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
         # Provide various details about who we are.
-        x509.NameAttribute(NameOID.COMMON_NAME, u"ACME_Project_Netsec_2023:New Twitter"), #Common name
-        x509.NameAttribute(NameOID.COUNTRY_NAME, u"CH"), #Country
-        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"), #State
-        x509.NameAttribute(NameOID.LOCALITY_NAME, u"Zurich"), #Locality
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"NetSecProject"), #Organization
+        x509.NameAttribute(NameOID.COMMON_NAME, u"ACMEv2") #Common name
     ])).add_extension(
         x509.SubjectAlternativeName([x509.DNSName(domain) for domain in domains]),
         critical=False,
@@ -824,7 +867,7 @@ def main():
     parse.add_argument('-r', '--revoke',help='certificate revokation, for dns and https', required=False)
     args = parse.parse_args()
 
-    DNS_SERVER_PORT = 14000 #UDP port 10053
+    DNS_SERVER_PORT = 10053 #UDP port 10053
     CHALLENGE_SERVER_PORT = 5002 #TCP port 5002
     CHALLENGE_SERVER_SHUTDOWN_PORT = 5003 #TCP port 5003
     CERTIFICATE_PORT = 5001 #TCP port 5001
@@ -839,7 +882,7 @@ def main():
         IPAddr = args.record
 
     #---------------------Start the DNS server---------------------
-    print("DNS server starting........")
+    #print("DNS server starting........")
     dns_server = DNS_Server(args.record, DNS_SERVER_PORT, IPAddr)
     run_dns_server(dns_server, args)
     print("DNS server started")
@@ -859,10 +902,10 @@ def main():
     #---------------------Start the acme server---------------------
     server = requests.Session()
     #server.verify = False
-    server.verify = 'pebble.minica.pem'
+    #server.verify = 'pebble.minica.pem'
     #root_ca = 'pebble.minica.pem'
-    root_ca = 'pebble.minica.pem'
-    #server.verify= root_ca
+    root_ca = False
+    server.verify= root_ca
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
 
@@ -898,8 +941,9 @@ def main():
 
 
     #Identifier authorization
-    key_authorization = acme.get_key_authorization()
-    state = acme.authorization_and_challenge_response(cert_order["authorizations"] , key_authorization,cert_url, challenge_server, dns_server)
+    key_authorization = acme.get_thumbnail()
+    #def authorization_and_challenge_response(self, urls, key_authorization, chal,  http_server, dns_server): #7.5
+    state = acme.authorization_and_challenge_response(cert_order["authorizations"], key_authorization, args.challenge , challenge_server, dns_server)
     if not state:
         print("Authorization failed")
         return
@@ -910,7 +954,7 @@ def main():
     #Finalize order
     print("CERT_URL: ", cert_url)
     #    #def finalize_order(self, order_url, finalize_url, der):
-    state = acme.finalize_order(cert_url,cert_order["finalize"], der)
+    state = acme.finalize_order(cert_order["authorizations"],cert_order["finalize"], der)
     if not state:
         print("Finalize order failed")
         return
@@ -926,10 +970,6 @@ def main():
     print("SUCCESS WITH CERTIFICATE DOWNLOAD")
 
 
-    print("Challenge server shutting down........")
-    shutdown_server = ShutdownHTTPServer()
-    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
-    print("Challenge server shut down")
 
 
     #---------------------Start the certificate server---------------------
@@ -971,6 +1011,10 @@ def main():
 
 
     #-------------- shutdown the challenge server, why tf 21P?---------------------X
+    print("Challenge server shutting down........")
+    shutdown_server = ShutdownHTTPServer()
+    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
+    print("Challenge server shut down")
 
 
 
@@ -982,7 +1026,7 @@ def main():
 
 
 
-
+warnings.filterwarnings("ignore")
 if __name__ == "__main__":
     main()
 
