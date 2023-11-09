@@ -889,7 +889,7 @@ def main():
     certificate_server = Certificate_HTTPS()
     shutdown_server = ShutdownHTTPServer()
     shutdown_thread = Thread(target=certificate_server.run_server, args = (CERTIFICATE_PORT, IPAddr))
-    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
+
 
 
 
@@ -999,9 +999,8 @@ def main():
     #-------------- shutdown the challenge server, why tf 21P?---------------------X
     print("Challenge server shutting down........")
 
+    shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
     print("Challenge server shut down")
-
-
 
 
 
