@@ -440,7 +440,31 @@ class ACME_Client:
 
         print("Challenge success!!! All done!!!")
         #Poll the resources until the status is valid
+        return True
 
+
+
+
+    def finalize_order(self, order_url, finalize_url, der):
+        """
+             POST /acme/order/TOlocE8rfgo/finalize HTTP/1.1
+            Host: example.com
+            Content-Type: application/jose+json
+
+            {
+              "protected": base64url({
+                "alg": "ES256",
+                "kid": "https://example.com/acme/acct/evOfKhNU60wg",
+                "nonce": "MSF2j2nawWHPxxkE3ZJtKQ",
+                "url": "https://example.com/acme/order/TOlocE8rfgo/finalize"
+              }),
+              "payload": base64url({
+                "csr": "MIIBPTCBxAIBADBFMQ...FS6aKdZeGsysoCo4H9P",
+              }),
+              "signature": "uOrUfIIk5RyQ...nw62Ay1cl6AB"
+            }
+             """
+        # finalize the shit
         while True:
             new_nonce = self.get_nonce()
             protected = base64enc(json.dumps({"alg": "ES256",
@@ -463,39 +487,17 @@ class ACME_Client:
                     break
                 elif status == "pending":
                     print("Pending")
-                    time.sleep(10)
+                    time.sleep(1)
                     continue
                 else:
                     raise Exception("Invalid")
             else:
                 raise Exception("Error getting URL, status code: {response.status_code}")
-        return True
 
-
-    def finalize_order(self, order_url, der):
-        """
-             POST /acme/order/TOlocE8rfgo/finalize HTTP/1.1
-            Host: example.com
-            Content-Type: application/jose+json
-
-            {
-              "protected": base64url({
-                "alg": "ES256",
-                "kid": "https://example.com/acme/acct/evOfKhNU60wg",
-                "nonce": "MSF2j2nawWHPxxkE3ZJtKQ",
-                "url": "https://example.com/acme/order/TOlocE8rfgo/finalize"
-              }),
-              "payload": base64url({
-                "csr": "MIIBPTCBxAIBADBFMQ...FS6aKdZeGsysoCo4H9P",
-              }),
-              "signature": "uOrUfIIk5RyQ...nw62Ay1cl6AB"
-            }
-             """
-        # finalize the shit
         protected = base64enc(json.dumps({"alg": "ES256",
                                           "kid": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
-                                          "url": order_url}))
+                                          "url": finalize_url}))
         # Create payload
         payload = base64enc(json.dumps({"csr": der}))
 
@@ -513,7 +515,7 @@ class ACME_Client:
                 protected = base64enc(json.dumps({"alg": "ES256",
                                                   "kid": self.kid,
                                                   "nonce": new_nonce,  # Get the nonce from the server
-                                                  "url": order_url}))
+                                                  "url":finalize_url}))
                 payload = ""
                 # Sign the body
                 sig, _ = self.sign_body(protected, payload, self.account_key)
@@ -769,10 +771,6 @@ class ACME_Client:
 
 
 
-
-
-
-
 #Run the dns server
 def run_dns_server(server, args):
     for domain in args.domain:
@@ -842,7 +840,7 @@ def main():
 
     #---------------------Start the DNS server---------------------
     print("DNS server starting........")
-    dns_server = DNS_Server(args.record, DNS_SERVER_PORT)
+    dns_server = DNS_Server(args.record, DNS_SERVER_PORT, IPAddr)
     run_dns_server(dns_server, args)
     print("DNS server started")
 
@@ -862,8 +860,8 @@ def main():
     server = requests.Session()
     #server.verify = False
     #server.verify = 'pebble.minica.pem'
-    root_ca = 'pebble.minica.pem'
-    #root_ca = False
+    #root_ca = 'pebble.minica.pem'
+    root_ca = False
     server.verify= root_ca
     #server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     #print(server_response.json())
@@ -886,6 +884,7 @@ def main():
 
     #Apply certificate issuance
     cert_order, cert_url = acme.applyCert(args.domain)
+
     print(cert_order)
     if not cert_order:
         print("Certificate order failed")
@@ -909,8 +908,9 @@ def main():
     #Generate CSR
     key, csr, der = GenerateCSRForServer(args.domain)
     #Finalize order
-
-    state = acme.finalize_order(cert_url, key)
+    print("CERT_URL: ", cert_url)
+    #    #def finalize_order(self, order_url, finalize_url, der):
+    state = acme.finalize_order(cert_url,cert_order["finalize"], der)
     if not state:
         print("Finalize order failed")
         return
@@ -950,12 +950,12 @@ def main():
 
 
     #Revoke Certificate
-    if args.revoke:
-        revoke_state = acme.revokeCert(cert)
-        if not revoke_state:
-            print("Certificate revocation failed")
-            return
-        print("SUCCESS WITH CERTIFICATE REVOCATION")
+
+    revoke_state = acme.revokeCert(cert)
+    if not revoke_state:
+        print("Certificate revocation failed")
+        return
+    print("SUCCESS WITH CERTIFICATE REVOCATION")
 
 
 

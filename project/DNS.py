@@ -33,11 +33,11 @@ class DNS_Server:
     Setup my own dns server
 
     """
-    def __init__(self, args, port):
+    def __init__(self, args, port, addr):
         self.args = args
         self.port = port
         self.resolver = DNS_Resolver()
-        self.server = DNSServer(resolver=DNS_Resolver(), port=port, address="0.0.0.0", logger=DNSLogger(prefix = False))
+        self.server = DNSServer(resolver=self.resolver, port=port, address=addr, logger=DNSLogger(prefix = False))
 
 
     def resolve_update(self, domain,zone,tp):
