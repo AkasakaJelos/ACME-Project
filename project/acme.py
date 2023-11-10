@@ -287,11 +287,11 @@ class ACME_Client:
         #print("ecdsa:", ecdsa)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig}) #Body generated
-        print("This is bodyy: ", body)
+        #print("This is bodyy: ", body)
 
         #Send the request
         response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify=self.cert)
-        print("This is the response after applying cert: ", response.json())
+        #print("This is the response after applying cert: ", response.json())
         if response.status_code == 200:
             #Write the certificate into the file
 
@@ -303,7 +303,7 @@ class ACME_Client:
                                  "payload": "",
                                  "signature": sig})
             response = self.client.post(url=cert_cert_url, data=body, headers=self.JOSE_Header, verify=self.cert)
-            print("THis is downloading: ", response)
+            #print("THis is downloading: ", response)
             if response.status_code == 200:
                 #Write cert path into the file
                 cert = response.content  # Get the certificate
@@ -347,7 +347,7 @@ class ACME_Client:
                                           "kid": self.kid,
                                           "nonce": self.get_nonce(),  # Get the nonce from the server
                                           "url": self.directory["newOrder"]}))
-        payload =""  # It is nothing
+        payload = ""  # It is nothing
 
 
         #Sign the body
@@ -433,11 +433,11 @@ class ACME_Client:
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
             #print(response.json())
             if response.status_code == 200:
-                print("Challenge success, next one")
+                print("Challenge success, next one\n")
             else:
                 raise Exception("Challenge failed")
 
-        print("Challenge success!!! All done!!!")
+        print("Challenge success!!! All done!!! \n")
         #Poll the resources until the status is valid
         return True
 
@@ -648,7 +648,7 @@ class ACME_Client:
             #self.directory = url_.json()
             return url_.json()
         elif url_.status_code == 204:
-            print(url_) #{}
+            #print(url_) #{}
             #self.directory = url_
             return url_  #Empty response
         else:
@@ -986,6 +986,8 @@ def main():
 
     shutdown_server.shutdown_server(CHALLENGE_SERVER_SHUTDOWN_PORT, IPAddr)
     print("Challenge server shut down")
+
+
 
 
 
