@@ -26,12 +26,10 @@ from threading import Thread
 import argparse
 import time
 
-import base64
 from base64 import urlsafe_b64encode
 import json
 
 
-import Crypto
 from Crypto.PublicKey import ECC
 from Crypto.Hash import SHA256
 from Crypto.Signature import DSS
@@ -40,23 +38,14 @@ import requests
 #Private libs
 from DNS import DNS_Server
 from HTTP import HTTPChallengeServer, ShutdownHTTPServer
-from HTTPS import Certificate_HTTPS, ShutdownHTTPSServer
-from JWS import JWS
+from HTTPS import Certificate_HTTPS
 
 #Used to generate the public private key pair to prove the client is controlling it
 
 
 
-
-def base64enc_fin(payload):
-    if isinstance(payload, str):
-        payload = payload.encode('utf8')
-    encoded = urlsafe_b64encode(payload)
-    #print("_This is encoded: ", encoded)
-    decoded = encoded.decode('utf8')
-    return decoded
-#One should use urlsafe base64 encoding from FAQ
-def base64enc(payload):
+#----------------------------JWS part---------------------------------
+def base64enc(payload): #Does the most of the job
     if isinstance(payload, str):
         payload = payload.encode('utf8')
     encoded = urlsafe_b64encode(payload)
@@ -64,7 +53,7 @@ def base64enc(payload):
     decoded = encoded.decode('utf8').rstrip("=")
     return decoded
 
-def H(data, encoding):
+def H(data, encoding): #Does nearly nothing.
     # hash function using SHA256 encoding, used for the DNS challenge and more
     if isinstance(data, str):
         data = data.encode(encoding)
@@ -72,7 +61,7 @@ def H(data, encoding):
     Hash = SHA256.new(data) #Added string encode as it could be bytes. Used for the DNS challenge
     #print(Hash)
     return Hash
-
+#----------------------------JWS part---------------------------------
 
 
 
@@ -318,7 +307,7 @@ class ACME_Client:
             if response.status_code == 200:
                 #Write cert path into the file
                 cert = response.content  # Get the certificate
-                print("That's cert brroooo:", cert)
+                #print("That's cert brroooo:", cert)
                 with open(cert_path, "wb") as f:
                     f.write(cert)
                 #Write key path into the file
@@ -405,18 +394,18 @@ class ACME_Client:
             body =json.dumps({"protected":protected,
                                  "payload": "",
                                  "signature": sig})
-            print("This is body from url:::", body)
+            #print("This is body from url:::", body)
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)
-            print("response for json_ challenge collecting phase: ", response.json())
+            #print("response for json_ challenge collecting phase: ", response.json())
             if response.status_code == 200:
                 #print("Collect Challenge")
                 challenges = response.json()["challenges"]
                 for cha in challenges:
                     if cha["type"] == "http-01" and chal == "http01":
-                        print("Adding http challenge: ", cha)
+                        #print("Adding http challenge: ", cha)
                         validation_urls.append(self.http_challenge(cha, key_authorization, http_server))
                     elif cha["type"] == "dns-01" and chal == "dns01":
-                        print("Adding dns challenge: ", cha)
+                        #print("Adding dns challenge: ", cha)
                         validation_urls.append(self.dns_challenge(response, cha, key_authorization, dns_server))
 
             else:
@@ -428,7 +417,7 @@ class ACME_Client:
         url_collection= [] #Used to poll the status
         for url in validation_urls:
             #Need to respond to the challenges
-            print("Processing on: ", url)
+            #print("Processing on: ", url)
             url_collection.append(url)
             protected = base64enc(json.dumps({"alg": "ES256",
                                                 "kid": self.kid,
@@ -442,7 +431,7 @@ class ACME_Client:
             # Get the full body
             body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
             response = self.client.post(url=url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
-            print(response.json())
+            #print(response.json())
             if response.status_code == 200:
                 print("Challenge success, next one")
             else:
@@ -475,7 +464,6 @@ class ACME_Client:
             }
              """
         # finalize the shit
-        print("order url_: ", order_url)
         for url_ in order_url:
             self.poll_status(url_,"")
 
@@ -488,12 +476,12 @@ class ACME_Client:
         protected, payload, sig = self.get_body(finalize_url, payload)
 
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-        print("This is bodyy of finalizing: ", body)
+        #print("This is bodyy of finalizing: ", body)
 
         response = self.client.post(finalize_url, data=body, headers=self.JOSE_Header, verify = self.cert)
-        print("This is the response from the poll: ", response.json())
+        #print("This is the response from the poll: ", response.json())
         if response.status_code == 200:
-            print("This is response: ", response.json())
+            #print("This is response: ", response.json())
             for url_ in order_url:
                 self.poll_status(url_, "")
             return True
@@ -531,17 +519,17 @@ class ACME_Client:
         protected, payload, sig = self.get_body(cert_url, payload)
         # Get the full body
         body = json.dumps({"protected": protected, "payload": payload, "signature": sig})
-        print("This is bodyy of revoking certt: ", body)
+        #print("This is bodyy of revoking certt: ", body)
         #Send the request
         response = requests.post(url=cert_url, data=body, headers=self.JOSE_Header, verify = self.cert)  # Does this work? Should be JWS
-        print("This is the revokation response: ", response)
+        #print("This is the revokation response: ", response)
         if response.status_code == 200:
             print("Certificate revoked")
             return True
 
 
 
-    def keyChange(self):
+    def keyChange(self): #Not necessary for this task, so I refuse to implememnt it
         """
            POST /acme/key-change HTTP/1.1
            Host: example.com
@@ -593,7 +581,7 @@ class ACME_Client:
             response = self.client.post(url=url_, data=body, headers=self.JOSE_Header,
                                         verify=self.cert)  # Does this work? Should be JWS
 
-            print("This is the response from the poll: ", response.json())
+            #print("This is the response from the poll: ", response.json())
             if response.status_code == 200:
                 status = response.json()["status"]
                 if status in ["ready", "processing", "valid"]:
@@ -770,7 +758,7 @@ class ACME_Client:
         get_val = response.json()["identifier"]["value"]
         #print("get_val: ", get_val)
         dns_server.resolve_update(f"_acme-challenge.{get_val}", key_auth, "TXT")
-        print("key auth: ", key_auth)
+        #print("key auth: ", key_auth)
         return challenge["url"]
 
 
@@ -800,18 +788,18 @@ def stop_dns_server(server):
 
 def GenerateCSRForServer(domains):
     #Generate the key for the server
-    key = rsa.generate_private_key(
+    key = rsa.generate_private_key( #Generate the key for the server, RSA lmao
         public_exponent=65537,
         key_size=2048
     )
     # Generate a CSR
     csr = x509.CertificateSigningRequestBuilder().subject_name(x509.Name([
         # Provide various details about who we are.
-        x509.NameAttribute(NameOID.COMMON_NAME, u"ACMEv2"), #Common name
+        x509.NameAttribute(NameOID.COMMON_NAME, u"ACMEv2BsEncodedVersion"), #Common name
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"Netsec"),
-        x509.NameAttribute(NameOID.COUNTRY_NAME, u"US"),
-        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"CA"),
-        x509.NameAttribute(NameOID.LOCALITY_NAME, u"San Francisco"),
+        x509.NameAttribute(NameOID.COUNTRY_NAME, u"CH"),
+        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, u"Zurich"),
+        x509.NameAttribute(NameOID.LOCALITY_NAME, u"EducationThatHurts"),
     ])).add_extension(
         x509.SubjectAlternativeName([x509.DNSName(domain) for domain in domains]),
         critical=False,
@@ -854,8 +842,6 @@ def main():
     elif args.challenge=="http01":
         IPAddr = args.record
 
-    #---------------------Start the DNS server---------------------
-    #print("DNS server starting........")
 
 
     #---------------------Start the challenge server---------------------
@@ -875,9 +861,6 @@ def main():
 
 
 
-
-
-    #---------------------Start the acme server---------------------
     #---------------------Start the acme server---------------------
     server = requests.Session()
     #server.verify = False
@@ -904,9 +887,9 @@ def main():
     print("DNS server started")
 
 
-    print("this is the directory", directory)
+    #print("this is the directory", directory)
     account, _ = acme.create_account(directory)
-    print("Account is this: ", account)
+    #print("Account is this: ", account)
     if not account:
         print("Account creation failed")
         return
@@ -916,7 +899,7 @@ def main():
     #Apply certificate issuance
     cert_order, cert_url = acme.applyCert(args.domain)
 
-    print(cert_order)
+    #print(cert_order)
     if not cert_order:
         print("Certificate order failed")
         return
@@ -940,7 +923,7 @@ def main():
     #Generate CSR
     key, csr, der = GenerateCSRForServer(args.domain)
     #Finalize order
-    print("CERT_URL: ", cert_url)
+    #print("CERT_URL: ", cert_url)
     #    #def finalize_order(self, order_url, finalize_url, der):
     state = acme.finalize_order(cert_order["authorizations"],cert_order["finalize"], der)
     if not state:
@@ -961,7 +944,7 @@ def main():
     if args.revoke:
         #print(" THat'0s  the cert: ", cert)
         cert = x509.load_pem_x509_certificate(cert)
-        print("This is the cert: ", cert)
+        #print("This is the cert: ", cert)
         revoke_state = acme.revokeCert(cert.public_bytes(serialization.Encoding.DER))
         if not revoke_state:
             print("Certificate revocation failed")

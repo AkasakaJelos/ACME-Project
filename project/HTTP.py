@@ -50,11 +50,11 @@ class ShutdownHTTPServer:
 
         @self.app.route('/shutdown', methods=['GET'])
         def shutdown():
-            shutdown_func = request.environ.get('werkzeug.server.shutdown')
+            shutdown_func = request.environ.get('werkzeug.server.shutdown') #Shutting down the server using werkzeug library
             if shutdown_func:
-                shutdown_func()
+                shutdown_func() #Shutting down the server
                 return 'Server shutting down...'
-            return 'Shutdown function not available', 500
+            return 'Shutdown function not available', 500  #If the server is not running, return this message
 
     def shutdown_server(self, port, host):
         self.app.run(port=port, host=host, threaded=True) #Shutting down the server.

@@ -15,7 +15,7 @@ class Certificate_HTTPS:
     def cert_server(self):
         @self.server.route("/")
         def run():
-            print("HTTPS server is running")
+            print("HTTPS server is running....If it breaks, it's your fault ヽ( `д´*)ノ")
 
 
     def run_server(self, port, host, cert, key):
@@ -24,7 +24,7 @@ class Certificate_HTTPS:
 
 
 
-class ShutdownHTTPSServer:
+class ShutdownHTTPSServer: #Why tf did I implement this if this is not used?........
     def __init__(self):
         self.app = Flask(__name__)
         self.register_routes()
