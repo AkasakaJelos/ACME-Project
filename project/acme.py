@@ -643,7 +643,7 @@ class ACME_Client:
         return jwk
 
     def get_url_(self, url):
-        url_ = self.client.get(url, headers=self.Header, verify='pebble.minica.pem')
+        url_ = self.client.get(url, headers=self.Header) #        url_ = self.client.get(url, headers=self.Header, verify='pebble.minica.pem')
         if url_.status_code == 200:
             #self.directory = url_.json()
             return url_.json()
@@ -863,11 +863,11 @@ def main():
 
     #---------------------Start the acme server---------------------
     server = requests.Session()
-    #server.verify = False
-    server.verify = 'pebble.minica.pem'
-    root_ca = 'pebble.minica.pem'
-    #root_ca = False
-    server.verify = root_ca
+    server.verify = False
+    #server.verify = 'pebble.minica.pem'
+    #root_ca = 'pebble.minica.pem'
+    root_ca = False
+    #server.verify = root_ca
     # server_response = server.get(args.dir, verify = 'pebble.minica.pem')
     # print(server_response.json())
 
@@ -925,6 +925,7 @@ def main():
     #Finalize order
     #print("CERT_URL: ", cert_url)
     #    #def finalize_order(self, order_url, finalize_url, der):
+    print("This is the der value: ", der)
     state = acme.finalize_order(cert_order["authorizations"],cert_order["finalize"], der)
     if not state:
         print("Finalize order failed")

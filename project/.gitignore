@@ -1,0 +1,8 @@
+.DS_Store
+.idea/
+.omc/
+__pycache__/
+*.pyc
+project/cert.pem
+project/key.pem
+
